@@ -12,6 +12,16 @@ This document defines the user interface and user experience design for the Opti
 3. **Safety First** - Dangerous actions are visually distinct and require confirmation
 4. **Mobile Ready** - All critical functions accessible on mobile devices
 
+### CRITICAL DESIGN PRINCIPLE: Generic Abstraction Over Strategy-Specific Design
+**Core Rule**: Strategy implementations are EXAMPLES for design abstraction, NOT targets for custom layouts.
+
+**Key Requirements**:
+- Every UI element must work for ANY future strategy without modification
+- Card layout is FROZEN: 7 lines total, fixed positions, generic labels
+- No strategy-specific special cases or custom fields
+- Always ask: "What do I REALLY need to see?" - Remember TWS is always available for details
+- When in doubt: Simpler is better. Show less, not more.
+
 ### Key Problems Solved
 - ✅ Clear visual hierarchy (no mixing of global/local controls)
 - ✅ Understandable labels (no cryptic abbreviations)
@@ -70,10 +80,10 @@ $125 → $200 target
 
 ### Core Concept: Strategy Instance Management
 The dashboard uses a revolutionary Kanban-based approach that distinguishes between:
-- **STRATEGY** (SPX Iron Condor, SPY Strangle) - The trading rule set
-- **STRATEGY INSTANCE** (SPX#001, SPY#007) - Individual executions of that strategy
+- **STRATEGY** - The trading rule set (configured via Meta-Strategy Model)
+- **STRATEGY INSTANCE** - Individual executions of that strategy
 
-This enables tracking multiple parallel instances per strategy (e.g., SPY Strangle has 3+ concurrent 42 DTE positions).
+This enables tracking multiple parallel instances per strategy (e.g., multi-week strategies can have 3+ concurrent positions).
 
 ### Desktop Kanban View
 ```
@@ -90,28 +100,28 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
 │         │ OPTIONS │ ORDER   │ ORDER   │         │         │         │                                                   │
 │         │         │         │  EXIT   │         │         │         │                                                   │
 ├─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤                                                   │
-│         │         │         │         │         │         │         │ SPX IRON CONDOR                                   │
-│SPX#003  │         │SPX#002  │         │SPX#001  │SPX#999  │SPX#990  │ P/L: +$680 💰 | +$340 🧪                         │
+│         │         │         │         │         │         │         │ STRATEGY TYPE A                                   │
+│ST1#003  │         │ST1#002  │         │ST1#001  │ST1#999  │ST1#990  │ P/L: +$680 💰 | +$340 🧪                         │
 │✅ Ready │         │🔄 Doing │         │✅ Good  │✅ Done  │✅ Done  │ Mode: [LIVE] [EXPERIMENT]                         │
 │Tom 9:32 │         │Placing  │         │+$125🟢  │+$200✓  │+$180✓  │                                                   │
 │🧪 EXP   │         │💰LIVE   │         │2h left  │Profit   │45d old │                                                   │
 │Market✓  │         │[🔴STOP] │         │[🔴STOP] │Target   │         │                                                   │
 │         │         │         │         │         │         │         │                                                   │
-│SPX#004  │         │         │         │         │SPX#998  │SPX#989  │                                                   │
+│ST1#004  │         │         │         │         │ST1#998  │ST1#989  │                                                   │
 │⏸️ Wait  │         │         │         │         │❌ Loss  │✅ Done  │                                                   │
 │Fri 9:32 │         │         │         │         │-$150✗  │+$90✓   │                                                   │
 │💰LIVE   │         │         │         │         │Stop Hit │Time Exit│                                                   │
 │Mkt Close│         │         │         │         │         │         │                                                   │
 ├─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤                                                   │
-│         │         │         │         │         │         │         │ SPY STRANGLE                                      │
-│SPY#009  │SPY#008  │         │SPY#007  │SPY#006  │SPY#005  │SPY#001  │ P/L: +$770 💰 | +$440 🧪                         │
+│         │         │         │         │         │         │         │ STRATEGY TYPE B                                   │
+│ST2#009  │ST2#008  │         │ST2#007  │ST2#006  │ST2#005  │ST2#001  │ P/L: +$770 💰 | +$440 🧪                         │
 │✅ Ready │🔄 Doing │         │✅ Good  │🔄 Roll  │✅ Done  │✅ Done  │ Mode: [LIVE] [EXPERIMENT]                         │
 │Fri 18h  │Delta15  │         │Setting  │Rolling  │+$400✓  │+$280✓  │                                                   │
 │💰LIVE   │🧪 EXP   │         │OCA      │28 DTE   │Profit   │60d old │                                                   │
 │Market✓  │         │         │💰LIVE   │💰LIVE   │Target   │         │                                                   │
 │         │         │         │         │[🔴STOP] │         │         │                                                   │
 │         │         │         │         │         │         │         │                                                   │
-│SPY#010  │SPY#011  │         │         │SPY#004  │SPY#003  │SPY#002  │                                                   │
+│ST2#010  │ST2#011  │         │         │ST2#004  │ST2#003  │ST2#002  │                                                   │
 │⏸️ Wait  │❌ Error │         │         │✅ Good  │❌ Loss  │✅ Done  │                                                   │
 │Next Fri │No Opts  │         │         │-$45🔴  │-$300✗  │+$150✓  │                                                   │
 │🧪 EXP   │🧪 EXP   │         │         │35 DTE   │Stop Hit │Time Exit│                                                   │
@@ -131,8 +141,25 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
 6. **CLOSED** - Position closed, final P/L calculated
 7. **ARCHIVE** - Historical instances (30+ days old or manually archived)
 
+### 🚨 CRITICAL DESIGN DECISION: NO DRAG & DROP REQUIRED
+
+**IMPORTANT**: The Kanban board uses **programmatic movement** between columns, NOT manual drag & drop:
+
+- **✅ Instances move automatically** based on trading system status changes
+- **✅ Click-based manual actions** (SKIP, STOP, ARCHIVE buttons) for user intervention
+- **✅ Animated transitions** via CSS + HTMX for visual feedback
+- **❌ NO drag & drop needed** - instances flow through columns based on trading logic
+- **❌ NO complex JavaScript** required - pure HTMX + CSS implementation
+
+**Rationale:**
+- Trading instances follow predetermined workflow - manual column dragging inappropriate
+- Mobile-friendly (touch interfaces struggle with drag & drop)
+- Accessibility compliant (screen readers can navigate click-based interface)
+- Simpler maintenance and debugging
+- 100% HTMX compatible without JavaScript libraries
+
 ### Strategy Swimlanes
-- Each strategy (SPX Iron Condor, SPY Strangle) has its own horizontal lane
+- Each strategy type has its own horizontal lane
 - Strategy-level controls and statistics displayed in lane header
 - Instances flow left-to-right through status columns within their lane
 
@@ -151,7 +178,7 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
 ### Instance Field Definitions
 
 #### Core Fields (All Strategies)
-- **Instance ID**: Format: `[STRATEGY]-[YYMMDD]-[###]` (e.g., SPXIC-240115-001)
+- **Instance ID**: Format: `[STRATEGY_ABBREV]-[YYMMDD]-[###]` (e.g., ST1-240115-001)
 - **Status Badge**: ✅ Good | 🔄 Doing | ⏸️ Wait | ❌ Error | ⚠️ Warning
 - **Mode Badge**: 💰 LIVE | 🧪 EXPERIMENT
 - **P/L Display**: 
@@ -165,8 +192,8 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
   - Delta, Gamma, Theta and Vega of the overall Option-Strategy of this trade
 - **Time Display**:
   - DTE: Days to Expiry 
-    - Current: "42 DTE" (single expiry for SPX IC and SPY Strangle)
-    - Future: "7/35 DTE" (for calendar spreads - not yet implemented)
+    - Single expiry: "42 DTE"
+    - Multiple expiries: "7/35 DTE" (for complex strategies)
   - TTC: Time to Close (e.g., "2.5h", "45m", "5m")
   - **Scheduled time (Column 1 NEXT only)**: First content line in Ready/Waiting status displays execution time in user timezone with market time in parentheses:
     - **Today**: "Today 15:32 CET (9:32 ET)"
@@ -186,7 +213,7 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
   - P/L displayed with card background color (green/red/gray)
   - Greeks block displayed (values change with market)
   - TTC countdown displayed
-  - Roll status when applicable: "🔄 Rolling" (SPY Strangle only)
+  - Roll status when applicable: "🔄 Rolling" (for strategies with rolling enabled)
   
 - **CLOSED Column**:
   - Final P/L with card background color (green/red/gray)
@@ -195,6 +222,123 @@ This enables tracking multiple parallel instances per strategy (e.g., SPY Strang
 - **ARCHIVE Column**:
   - Final P/L (no background color, compact display)
   - Archive age: "31d ago" | "45d ago"
+
+## Unified Kanban Card Design System
+
+### Universal 9-Line Card Structure
+Every card across all columns MUST adhere to this exact 9-line structure:
+
+```
+Line 1: Header [Mode Badge] [Instance ID] [Status Badge]
+Line 2: Divider ─────────────────
+Line 3: Primary value/message
+Line 4: Secondary value/detail  
+Line 5: Empty or contextual
+Line 6: Empty or contextual
+Line 7: Empty or contextual
+Line 8: Divider ─────────────────
+Line 9: Action button or empty
+```
+
+### Column-Specific Layout Adaptations
+
+#### Sparse Layout (Columns 1-4)
+- Use 3 of 5 content lines (Lines 3-4 filled, Line 5 contextual, Lines 6-7 empty)
+- White background throughout
+- Focus on essential information only
+- Example: Column 1 shows execution time (Line 3) and remaining time (Line 4)
+
+#### Dense Layout (Column 5: ACTIVE)
+- Use all 5 content lines (Lines 3-7 fully utilized)
+- P/L colored background (green/red/gray)
+- Comprehensive real-time data display
+- Line 3: P/L (single or dual column with PT)
+- Lines 4-5: Greeks (D/G and T/V pairs)
+- Line 6: DTE (centered) OR DTE | TTC (when TTC defined)
+- Line 7: Empty (reserved for future use)
+
+#### Minimal Layout (Columns 6-7)
+- Use 2 of 5 content lines (Lines 3-4 filled, Lines 5-7 empty)
+- P/L colored background (Column 6) or white (Column 7)
+- Most compact information display
+- Example: Column 6 shows P/L (Line 3) and exit reason (Line 4)
+
+### Status Badge Evolution Pattern
+
+The status badges follow a strict progression matching the column's purpose:
+
+```
+Column 1 (NEXT):        ✅ READY | ⏸️ WAIT | ⚠️ WARNING
+Columns 2-4 (WORK):     🔄 DOING | ❌ ERROR  
+Column 5 (ACTIVE):      ✅ RUNNING | ⚠️ WARNING | 🔄 ROLLING | ❌ ERROR
+Columns 6-7 (FINAL):    ✅ DONE | ❌ ERROR | ⏸️ SKIPPED
+```
+
+**Key Rules:**
+- No ❌ ERROR in Column 1 (problems still fixable)
+- No ✅ "Good" status - use RUNNING for Column 5
+- ✅ DONE for ALL successfully completed trades (profit or loss)
+- ❌ ERROR only for system/process failures, NOT financial losses
+- Status must match column context and workflow stage
+
+### Button Safety Model
+
+All buttons follow consistent naming and behavior:
+
+#### Primary Actions
+- **[🗃️ SKIP]**: Column 1 only, requires confirmation
+- **[🗃️ ARCHIVE]**: Columns 2-3 (at max retries), Column 6, no confirmation
+
+#### Emergency Actions  
+- **[🔴 STOP]**: Columns 2-5 during active work, requires confirmation
+- **[🔴 CLOSE MKT]**: Columns 4-5 emergency market close button (consistent naming)
+  - Column 4: Shows when UNPROTECTED state (no OCA exists)
+  - Column 5: Standard close button for active positions (OCA exists)
+  - Behavior: Requires confirmation → Market order → Cancel OCA (if exists) → Move to Column 6
+
+#### Safety Dialogs
+Only two dialog options allowed:
+- **SKIP dialogs**: [CANCEL] [YES, SKIP]
+- **STOP dialogs**: [CANCEL] [YES, STOP]
+
+### Information Hierarchy Rules
+
+Strict content placement ensures visual consistency:
+
+1. **Line 3**: ALWAYS primary value/status
+   - Column 1: Execution time
+   - Columns 2-4: Progress/error message
+   - Column 5: P/L display
+   - Columns 6-7: Final P/L
+
+2. **Line 4**: ALWAYS secondary value/detail
+   - Column 1: Remaining time
+   - Columns 2-4: Action detail/retry counter
+   - Column 5: Greeks (first pair)
+   - Columns 6-7: Exit reason/age
+
+3. **Lines 5-7**: Context-dependent or empty
+   - Sparse: Mostly empty
+   - Dense: Fully utilized (Greeks, DTE, TTC)
+   - Minimal: Always empty
+
+### Background Color Semantics
+
+Colors convey P/L state and column purpose:
+
+- **White Background** (Columns 1-4): Process/workflow stages
+- **Green Background** (Columns 5-7): Profitable position (+$X)
+- **Red Background** (Columns 5-7): Loss position (-$X)
+- **Gray Background** (Columns 5-7): Break-even ($0) or no data
+
+### "Clog the Flow" Principle
+
+Failed instances intentionally remain visible in their columns to force user attention:
+
+- Error instances stay in place (no separate error lane)
+- Manual archiving required via [🗃️ ARCHIVE] button
+- Creates natural urgency for problem resolution
+- Preserves system state visibility
 
 ### Mode Control Architecture
 
@@ -259,12 +403,12 @@ Each strategy has independent mode setting:
 ├─────────────────────┤
 │ Total: +$580.50     │
 ├─────────────────────┤
-│ SPX CONDOR          │
+│ STRATEGY A          │
 │ ● ACTIVE            │
 │ [LIVE] 💰 +$125.50  │
 │ [Pause] [Details]   │
 ├─────────────────────┤
-│ SPY STRANGLE        │
+│ STRATEGY B          │
 │ ○ WAITING           │
 │ [EXPERIMENT] 🧪 +$45│
 │ [Start] [Details]   │
@@ -321,14 +465,14 @@ CLOSED + Mode
 
 #### Strategy Mode Toggle (When Allowed)
 ```
-SPX IRON CONDOR                           [🔴 STOP ALL]
+STRATEGY TYPE A                           [🔴 STOP ALL]
 Mode: [● LIVE] ○ EXPERIMENT    ← Clickable when no active instances
 P/L: +$680 💰 | +$340 🧪
 ```
 
 #### Strategy Mode Toggle (When Blocked)
 ```
-SPY STRANGLE                              [🔴 STOP ALL]  
+STRATEGY TYPE B                           [🔴 STOP ALL]  
 Mode: [● LIVE] ○ EXPERIMENT    ← Disabled, tooltip: "2 instances actively trading"
 P/L: +$770 💰 | +$440 🧪
 ```
@@ -337,14 +481,14 @@ P/L: +$770 💰 | +$440 🧪
 ```
 ACTIVE Column:
 ┌─────────────────┐
-│ SPX#001         │ 
+│ ST1#001         │ 
 │ ✅ Good         │
 │ +$125🟢 💰LIVE │  ← Live instance
 │ [🔴 STOP]       │  → Becomes EXPERIMENT in CLOSED
 └─────────────────┘
 
 ┌─────────────────┐
-│ SPY#007         │
+│ ST2#007         │
 │ ✅ Good         │ 
 │ -$45🔴 🧪EXP    │  ← Experiment instance  
 │ [🔴 STOP]       │  → Moves to CLOSED
@@ -362,7 +506,7 @@ ACTIVE Column:
 ┌─────────────────────────────────────────┐
 │      💰 ENABLE REAL MONEY TRADING?      │
 ├─────────────────────────────────────────┤
-│ Strategy: SPX 0DTE Iron Condor          │
+│ Strategy: [Strategy Name]               │
 │                                          │
 │ ⚠️ This will use REAL MONEY!            │
 │ Next instances will trade with real $   │
@@ -408,8 +552,8 @@ Settings accessible via [⚙️] button in header
 │ └─ Discord Alerts: [✓] Immediate [✓] Every minute           │
 │                                                               │
 │ TRADING WINDOWS                                              │
-│ ├─ SPX IC Entry: [9:32 ET      ] (fixed)                    │
-│ ├─ SPY Strangle Entry: [Friday 18:00 CET ▼]                 │
+│ ├─ Strategy A Entry: [9:32 ET      ] (fixed)                │
+│ ├─ Strategy B Entry: [Friday 18:00 CET ▼]                   │
 │ └─ Time Zone Display: [CET     ▼]                           │
 │                                                               │
 │ [Cancel]                                    [Save Settings]  │
@@ -436,6 +580,28 @@ Settings accessible via [⚙️] button in header
 └─────────────────────────────────────────┘
 ```
 
+## Close Market Confirmation (Column 4/5)
+
+### Trigger
+- Clicking [🔴 CLOSE MKT] button in Column 4 (UNPROTECTED) or Column 5 (ACTIVE)
+
+### Behavior
+```
+┌─────────────────────────────────────────┐
+│        🔴 CLOSE POSITION AT MARKET?      │
+├─────────────────────────────────────────┤
+│ Instance: ST1-240115-001                │
+│ Current P/L: -$125                       │
+│                                          │
+│ This will:                               │
+│ • Close position at market price         │
+│ • Cancel OCA exit orders (if any exist)  │
+│ • Move instance to CLOSED                │
+│                                          │
+│ [CANCEL]                  [YES, CLOSE]   │
+└─────────────────────────────────────────┘
+```
+
 ## Skip Instance Confirmation (Column 1)
 
 ### Trigger
@@ -446,7 +612,7 @@ Settings accessible via [⚙️] button in header
 ┌─────────────────────────────────────────┐
 │          🗃️ SKIP THIS INSTANCE?         │
 ├─────────────────────────────────────────┤
-│ Instance: SPXIC-240115-001              │
+│ Instance: ST1-240115-001                │
 │ Status: Ready to execute                 │
 │                                          │
 │ Are you sure you want to skip this      │
@@ -470,7 +636,7 @@ Settings accessible via [⚙️] button in header
 ┌─────────────────────────────────────────┐
 │          🔴 STOP THIS INSTANCE?          │
 ├─────────────────────────────────────────┤
-│ Instance: SPXIC-240115-001              │
+│ Instance: ST1-240115-001                │
 │ Status: Searching options (Retry 5/10)   │
 │                                          │
 │ Are you sure you want to stop this      │
@@ -531,21 +697,53 @@ Settings accessible via [⚙️] button in header
 
 ## Implementation Notes
 
-### Technology Stack
-- **Frontend Framework**: HTML + HTMX for real-time updates
-- **CSS Framework**: Tailwind CSS or custom CSS with variables
+### Technology Stack (2025 Production Standards)
+- **Frontend Framework**: HTML + HTMX with Server-Sent Events (SSE) for real-time updates (HTML-first approach)
+- **CSS Framework**: Tailwind CSS + DaisyUI (2025 standard for FastAPI + HTMX production systems)
+- **Component Library**: DaisyUI for professional UI components (cards, badges, buttons, alerts)
 - **Icons**: Emoji for universal support, or icon font
 - **Charts**: Chart.js for performance visualization
+- **Real-time Communication**: sse_starlette for SSE streaming, HTMX SSE extension for client-side handling
 
 ### Responsive Breakpoints
 - **Mobile**: < 768px
 - **Tablet**: 768px - 1024px
 - **Desktop**: > 1024px
 
-### Update Frequency
-- **Status Updates**: Every 2 seconds via HTMX
+### Update Frequency & Animation Specifications
+- **Status Updates**: Every 5 seconds via Server-Sent Events (SSE)
 - **P/L Updates**: Real-time when positions active
 - **Connection Status**: Every 30 seconds
+
+### Animation Requirements (NO JavaScript Needed)
+
+**Programmatic Column Movement:**
+- **Automatic Transitions**: Instances move between columns based on trading system status changes
+- **CSS Animations**: Smooth slide transitions using Tailwind CSS classes
+- **Duration**: 300-500ms for column transitions
+- **Easing**: `ease-in-out` for natural movement feel
+
+**Animation Types:**
+- **Status Change**: Fade out → Update → Fade in (200ms each phase)
+- **Column Movement**: Slide-out from current column → Slide-in to new column (400ms total)
+- **State Indicators**: Pulse animation for READY status, bounce for DOING status
+- **Error States**: Gentle shake animation for critical errors
+
+**Implementation Pattern:**
+```css
+/* All animations via CSS classes + HTMX */
+.transition-column { 
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+}
+.fade-transition { 
+  transition: opacity 0.2s ease-in-out; 
+}
+```
+
+**HTMX Integration:**
+- Animations triggered by `hx-trigger` events
+- Smooth swapping via HTMX `transition:true` attribute
+- Out-of-band updates for multi-column movements
 
 ### Accessibility
 - **WCAG AA Compliance**: Proper contrast ratios
@@ -585,9 +783,9 @@ Non-technical users should be able to:
 - ✅ No blocking errors from previous runs
 
 #### OPTIONS SEARCH → ORDER PLACING (DoR)
-- ✅ Target delta options found (±1.9 tolerance)
-- ✅ Wing strikes calculated
-- ✅ All 4 legs identified and priced
+- ✅ Target options found (per strategy rules)
+- ✅ Strike prices calculated
+- ✅ All strategy legs identified and priced
 - ✅ Spread within acceptable range
 
 #### ORDER PLACING → EXIT SETUP (DoR)
@@ -627,55 +825,67 @@ Non-technical users should be able to:
 ### Column 1: NEXT
 ```
 ┌─────────────────┐
-🧪 SPXIC-240115-001 ✅
+🧪 ST1-240115-001 ✅
 ─────────────────
 Today 15:32 CET (9:32 ET)
 in 2h 15m
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
 
 ┌─────────────────┐
-💰 SPYST-240115-003 ⏸️
+💰 ST2-240115-003 ⏸️
 ─────────────────
 Tom 18:00 CET (12:00 ET)
 in 1 day
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
 
 ┌─────────────────┐
-🧪 SPXIC-240115-002 ⚠️
+🧪 ST1-240115-002 ⚠️
 ─────────────────
 Today 15:32 CET (9:32 ET)
 TWS disconnected
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
 
 ┌─────────────────┐
-💰 SPXIC-240115-004 ⚠️
+💰 ST1-240115-004 ⚠️
 ─────────────────
 Today 15:32 CET (9:32 ET)
 Insufficient capital
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
 
 ┌─────────────────┐
-💰 SPXIC-240115-006 ⏸️
+💰 ST1-240115-006 ⏸️
 ─────────────────
 Mi 15:32 CET (9:32 ET)
 in 5 days
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
 
 ┌─────────────────┐
-🧪 SPYST-240115-007 ⏸️
+🧪 ST2-240115-007 ⏸️
 ─────────────────
 29.01.2025 18:00 CET (12:00 ET)
 in 12 days
+
+
 ─────────────────
 [🗃️ SKIP]
 └─────────────────┘
@@ -710,103 +920,124 @@ in 12 days
 - 🔄 **DOING** - Actively searching for options OR retry in progress after error
 - ❌ **ERROR** - Search failed, waiting for next retry OR max retries reached
 
-**Line-by-Line Display:**
+**Line-by-Line Display (9-Line Structure):**
 1. Header: `[Mode Badge] [Instance ID] [Status Badge]`
 2. Divider: `─────────────────`
 3. Content Line 1: Progress/Error message
 4. Content Line 2: Action detail/Retry counter
-5. Divider: `─────────────────`
-6. Action: `[🔴 STOP]` during active work OR `[🗃️ ARCHIVE]` after max retries
+5. Empty line (sparse layout)
+6. Empty line (sparse layout)
+7. Empty line (sparse layout)
+8. Divider: `─────────────────`
+9. Action: `[🔴 STOP]` during active work OR `[🗃️ ARCHIVE]` after max retries
 
 **Status Examples:**
 
 ```
 SEARCH OPTIONS - Status: 🔄 DOING (Initial Search)
 ┌─────────────────┐
-💰 SPXIC-240115-001 🔄
+💰 ST1-240115-001 🔄
 ─────────────────
 Finding delta 15...
 Scanning strikes...
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: 🔄 DOING (Analyzing)
 ┌─────────────────┐
-🧪 SPYST-240115-002 🔄
+🧪 ST2-240115-002 🔄
 ─────────────────
 Analyzing spreads...
 4 candidates found
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: 🔄 DOING (Validating)
 ┌─────────────────┐
-💰 SPXIC-240115-003 🔄
+💰 ST1-240115-003 🔄
 ─────────────────
 Validating legs...
 Call: 5900/5920
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: ❌ ERROR (No Market Data)
 ┌─────────────────┐
-💰 SPXIC-240115-004 ❌
+💰 ST1-240115-004 ❌
 ─────────────────
 No market data
 Retry 5/30
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: ❌ ERROR (No TWS Connection)
 ┌─────────────────┐
-🧪 SPYST-240115-005 ❌
+🧪 ST2-240115-005 ❌
 ─────────────────
 No TWS connection
 Retry 8/10
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: 🔄 DOING (Reconnecting)
 ┌─────────────────┐
-🧪 SPYST-240115-005 🔄
+🧪 ST2-240115-005 🔄
 ─────────────────
 Reconnecting TWS...
 Attempt 13/30
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: ❌ ERROR (No Options Found)
 ┌─────────────────┐
-💰 SPXIC-240115-006 ❌
+💰 ST1-240115-006 ❌
 ─────────────────
 No options found
 Retry 28/30
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: ❌ ERROR (Search Timeout)
 ┌─────────────────┐
-🧪 SPYST-240115-007 ❌
+🧪 ST2-240115-007 ❌
 ─────────────────
 Search timeout
 Retry 3/30
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SEARCH OPTIONS - Status: ❌ ERROR (Max Retries - Final)
 ┌─────────────────┐
-💰 SPXIC-240115-008 ❌
+💰 ST1-240115-008 ❌
 ─────────────────
 Search failed
 Retry 10/10 (MAX)
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
@@ -866,80 +1097,96 @@ Retry 10/10 (MAX)
 ```
 PLACE ORDER - Status: 🔄 DOING (Initial Order)
 ┌─────────────────┐
-💰 SPXIC-240115-001 🔄
+💰 ST1-240115-001 🔄
 ─────────────────
 Placing order...
 LMT: $2.50
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 PLACE ORDER - Status: 🔄 DOING (After Order Modify)
 ┌─────────────────┐
-🧪 SPYST-240115-002 🔄
+🧪 ST2-240115-002 🔄
 ─────────────────
 Waiting for fill...
 LMT: $2.45 (Try 2/12)
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 PLACE ORDER - Status: 🔄 DOING (Multiple Modifies)
 ┌─────────────────┐
-💰 SPXIC-240115-003 🔄
+💰 ST1-240115-003 🔄
 ─────────────────
 Waiting for fill...
 LMT: $2.38 (Try 5/12)
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 PLACE ORDER - Status: ❌ ERROR (Order Rejected - LIVE only)
 ┌─────────────────┐
-💰 SPXIC-240115-004 ❌
+💰 ST1-240115-004 ❌
 ─────────────────
 Order rejected
 Order failed
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
 
 PLACE ORDER - Status: ❌ ERROR (Insufficient Margin - LIVE only)
 ┌─────────────────┐
-💰 SPXIC-240115-005 ❌
+💰 ST1-240115-005 ❌
 ─────────────────
 Insufficient margin
 Order failed
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
 
 PLACE ORDER - Status: ❌ ERROR (No TWS Connection - LIVE/EXP)
 ┌─────────────────┐
-🧪 SPYST-240115-006 ❌
+🧪 ST2-240115-006 ❌
 ─────────────────
 No TWS connection
 Retry 3/10
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 PLACE ORDER - Status: ❌ ERROR (Order Cancelled - LIVE only)
 ┌─────────────────┐
-💰 SPXIC-240115-007 ❌
+💰 ST1-240115-007 ❌
 ─────────────────
 Order cancelled
 Order failed
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
 
 PLACE ORDER - Status: ❌ ERROR (Max Retries - LIVE/EXP)
 ┌─────────────────┐
-🧪 SPYST-240115-008 ❌
+🧪 ST2-240115-008 ❌
 ─────────────────
 No TWS connection
 Order failed (10/10)
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
@@ -954,134 +1201,671 @@ Order failed (10/10)
 
 **CRITICAL COLUMN**: Any failure here = UNPROTECTED position (unlimited risk)
 - Discord CRITICAL alert on FIRST error (not after retries)
-- All errors lead to UNPROTECTED state after max retries
-- [🔴 CLOSE NOW] button replaces archive until position closed
+- All errors lead to UNPROTECTED state after max retries (NO OCA group exists)
+- [🔴 CLOSE MKT] button appears in UNPROTECTED state
+- After market close execution: Instance moves to Column 6 (CLOSED)
+- From Column 6: Standard archiving rules apply (manual or 30-day auto)
+- Note: In UNPROTECTED state, no OCA to cancel (that's why it's unprotected!)
 
 **Status Examples:**
 ```
 SETUP ORDER EXIT - Status: 🔄 DOING
 ┌─────────────────┐
-💰 SPXIC-240115-008 🔄
+💰 ST1-240115-008 🔄
 ─────────────────
 Setting OCA...
 Validating group...
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SETUP ORDER EXIT - Status: ❌ ERROR (Retrying)
 ┌─────────────────┐
-🧪 SPYST-240115-009 ❌
+🧪 ST2-240115-009 ❌
 ─────────────────
 No market data
 Retry 8/30
+
+
 ─────────────────
 [🔴 STOP]
 └─────────────────┘
 
 SETUP ORDER EXIT - Status: 🚨 UNPROTECTED (After Max Retries)
 ┌─────────────────┐
-💰 SPXIC-240115-010 🚨
+💰 ST1-240115-010 🚨
 ─────────────────
 🚨 UNPROTECTED
 No exit orders!
+
+
 ─────────────────
-[🔴 CLOSE NOW]
+[🔴 CLOSE MKT]
 └─────────────────┘
 ```
 
 ### Column 5: ACTIVE
+
+**Generic Layout Structure (9 lines - Dense)**
+```
+┌─────────────────┐
+[Mode] [ID] [Status]     ← Line 1: Header
+─────────────────        ← Line 2: Divider
+[P/L]                    ← Line 3: Centered when no PT
+[P/L] | [PT]            ← Line 3: Two columns when PT exists
+D:value  G:value        ← Line 4: Greeks row 1
+T:value  V:value        ← Line 5: Greeks row 2
+[DTE]                   ← Line 6: Centered when no TTC
+[DTE] | [TTC]           ← Line 6: Two columns when TTC exists
+[Message]               ← Line 7: Warning/Error/Activity messages
+─────────────────        ← Line 8: Divider
+[🔴 CLOSE MKT]          ← Line 9: Action button
+└─────────────────┘
+```
+
+**Status Examples:**
+
+**✅ RUNNING (without Profit Target, with TTC)**
 ```
 ┌─────────────────┐ (green bg)
-💰 SPXIC-240115-010 ✅
+💰 ST1-240115-010 ✅ RUNNING
 ─────────────────
 +$125
-2.5h left
-─────────────────
-[🔴 STOP]
-└─────────────────┘
+D:-0.102  G:-0.302
+T:+1.302  V:+2.500
+0 DTE | 2.5h TTC
 
-┌─────────────────┐ (red bg)
-💰 SPYST-240115-011 🔄
 ─────────────────
--$85
-Rolling...
-─────────────────
-[🔴 STOP]
-└─────────────────┘
-
-┌─────────────────┐ (green bg)
-🧪 SPXIC-240115-012 ⚠️
-─────────────────
-+$180
-Approaching stop
-─────────────────
-[🔴 STOP]
+[🔴 CLOSE MKT]
 └─────────────────┘
 ```
 
-### Column 6: CLOSED
+**✅ RUNNING (with Profit Target and TTC)**
 ```
 ┌─────────────────┐ (green bg)
-💰 SPXIC-240115-013 ✅
+🧪 ST2-240115-011 ✅ RUNNING
 ─────────────────
-+$200
-Profit target hit
-─────────────────
-[🗃️ ARCHIVE]
-└─────────────────┘
++$125 | PT:$200
+D:-0.102  G:-0.302
+T:+1.302  V:+2.500
+42 DTE | 21d TTC
 
-┌─────────────────┐ (red bg)
-🧪 SPYST-240115-014 ❌
 ─────────────────
--$300
-Stop loss hit
-─────────────────
-[🗃️ ARCHIVE]
+[🔴 CLOSE MKT]
 └─────────────────┘
+```
 
-┌─────────────────┐ (green bg)
-💰 SPXIC-240115-015 ✅
+**⚠️ WARNING (with TTC and message)**
+```
+┌─────────────────┐ (red bg - due to loss)
+💰 ST1-240115-012 ⚠️ WARNING
 ─────────────────
-+$45
-Time exit 11:30
+-$85 | PT:$400
+D:+0.285  G:-0.045
+T:-2.100  V:+0.800
+28 DTE | 15m TTC
+Strike touched        ← Orange text
 ─────────────────
-[🗃️ ARCHIVE]
+[🔴 CLOSE MKT]
 └─────────────────┘
+```
 
-┌─────────────────┐ (gray bg)
-🧪 SPYST-240115-016 ❌
+**🔄 ROLLING (for strategies with rolling enabled, with TTC)**
+```
+┌─────────────────┐ (red bg - due to loss)
+💰 ST2-240115-013 🔄 ROLLING
+─────────────────
+-$120 | PT:$300
+D:+0.315  G:-0.055
+T:-1.800  V:+0.900
+28 DTE | 21d TTC
+Rolling position      ← Blue text
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**❌ ERROR (with TTC and message)**
+```
+┌─────────────────┐ (gray bg - no data)
+💰 ST1-240115-014 ❌ ERROR
 ─────────────────
 $0
-Exit order failed
+D:-----  G:-----
+T:-----  V:-----
+0 DTE | 45m TTC
+No market data        ← Red text
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**✅ RUNNING (without TTC - DTE centered)**
+```
+┌─────────────────┐ (green bg)
+💰 ST3-240115-015 ✅ RUNNING
+─────────────────
++$250
+D:-0.150  G:-0.025
+T:+2.100  V:+3.200
+7 DTE
+
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**✅ RUNNING (with PT, without TTC - DTE centered)**
+```
+┌─────────────────┐ (green bg)
+🧪 ST3-240115-016 ✅ RUNNING
+─────────────────
++$180 | PT:$300
+D:-0.085  G:-0.015
+T:+1.500  V:+2.800
+14/21 DTE
+
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**⚠️ WARNING (SPY - profit with warning)**
+```
+┌─────────────────┐ (green bg - due to profit)
+🧪 ST2-240115-017 ⚠️ WARNING
+─────────────────
++$95 | PT:$200
+D:+0.480  G:-0.025
+T:-1.200  V:+1.800
+24 DTE | 3d TTC
+Close in 3 days       ← Orange text
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**⚠️ WARNING (SPX - approaching stop-loss)**
+```
+┌─────────────────┐ (red bg - due to loss)
+💰 ST1-240115-018 ⚠️ WARNING
+─────────────────
+-$150 | PT:$100
+D:+0.350  G:-0.045
+T:-3.100  V:+0.600
+0 DTE | 45m TTC
+Approaching SL        ← Orange text
+─────────────────
+[🔴 CLOSE MKT]
+└─────────────────┘
+```
+
+**Field Specifications:**
+
+**Line 3: P/L Display**
+- **Single column (centered)**: When no profit target exists or data unavailable
+- **Two columns**: When profit target exists
+  - Left: Current P/L (always with sign: +$X, -$X, $0)
+  - Right: `PT:$XXX` or status text like "Rolling", "No Data"
+
+**Lines 4-5: Greeks**
+- Always display with letter prefix: D:, G:, T:, V:
+- Show "-----" when data unavailable
+- Values include sign when relevant
+
+**Line 6: DTE/TTC Display**
+- **Single column (centered)**: When no TTC defined in strategy
+  - Shows only DTE: "42 DTE" or "7/14/21 DTE" (for multiple expiries)
+- **Two columns**: When TTC exists in strategy configuration
+  - Left: DTE (Days to Expiry): "42 DTE", "0 DTE", "7/14/21 DTE"
+  - Right: TTC (Time to Close): "2.5d TTC", "2.5h TTC", "45m TTC"
+- DTE formats:
+  - Single expiry: "42 DTE"
+  - Multiple expiries: "7/14/21 DTE" (sorted ascending)
+- TTC formats:
+  - Days (≥1d): "2.5d TTC"
+  - Hours (<24h): "2.5h TTC"
+  - Minutes (<60m): "45m TTC"
+
+**Line 7: Message Display**
+- Displays warnings, errors, or activity messages from strategy configuration
+- **Warning messages**: Orange/yellow text color (#FFA500)
+- **Error messages**: Red text color (#DC3545)
+- **Activity messages**: Blue text color (#007BFF)
+- **Normal state**: Empty (no message)
+- Text truncated to fit line width (max ~20 chars)
+- Full message shown on hover in tooltip overlay
+- Messages defined in strategy's `activeTradeMonitoring` configuration
+
+**Background Colors (IMPORTANT):**
+- Background color is **EXCLUSIVELY** determined by P/L value
+- **Green**: Profit (+$X) - regardless of status or warnings
+- **Red**: Loss (-$X) - regardless of status or warnings
+- **Gray**: Break-even ($0) or no data
+- Background color has **NO RELATION** to status badges, warnings, or errors
+- A card can have green background (profit) with ⚠️ WARNING status
+- A card can have red background (loss) without any warning
+
+### Column 6: CLOSED
+
+**Purpose**: Display finalized trades with their exit reasons and final P/L
+
+**Entry Conditions**:
+- Position fully closed via any exit trigger (profit target, stop loss, time exit)
+- Manual close via [🔴 CLOSE MKT] button
+- Emergency close executed
+- Final P/L calculated from TWS
+
+**Status Types**:
+- **✅ DONE**: Trade closed successfully (profit OR loss - financial outcome doesn't matter)
+- **❌ ERROR**: Post-close validation issues requiring manual intervention:
+  - Orphaned orders detected (matching strikes/expiration)
+  - P/L reconciliation mismatch between system and TWS
+  - TWS connection lost during finalization
+
+**Exit Reasons** (from strategy configuration):
+- Uses `exitReason` field from Meta-Strategy Model
+- SPX examples: "25% profit target hit", "300% stop loss hit", "Time exit 11:30 ET"
+- SPY examples: "50% profit target hit", "21 DTE mandatory close"
+- Manual exits: "Emergency market close", "Manual close by user"
+
+**Visual Indicators**:
+- **Background Color**: Based on P/L value
+  - Green: Profit (+$X)
+  - Red: Loss (-$X)
+  - Gray: $0 or error state (uncertain P/L)
+- **Status Badge**: ✅ DONE or ❌ ERROR
+- **Mode Badge**: 💰 LIVE or 🧪 EXPERIMENT (preserved from trade)
+
+**Archiving Rules**:
+- **Manual Archive**: [🗃️ ARCHIVE] button available immediately after position closes
+- **Automatic Archive**: After 30 days (configurable in settings)
+- **Blocked Archive**: If ❌ ERROR with orphaned orders, requires manual cleanup first
+- **After [🔴 CLOSE MKT]**: Instance moves here from Column 4/5, follows same archive rules
+
+**Generic Layout Structure (9 lines - Minimal)**
+```
+┌─────────────────┐
+[Mode] [ID] [Status]     ← Line 1: Header
+─────────────────        ← Line 2: Divider
+[P/L]                    ← Line 3: Primary value
+[Exit Reason]            ← Line 4: Secondary info
+                         ← Line 5: Empty
+                         ← Line 6: Empty
+                         ← Line 7: Empty
+─────────────────        ← Line 8: Divider
+[🗃️ ARCHIVE]            ← Line 9: Action button
+└─────────────────┘
+```
+
+**Status Examples:**
+
+**✅ DONE (Profit Target - SPX)**
+```
+┌─────────────────┐ (green bg)
+💰 ST1-240115-013 ✅ DONE
+─────────────────
++$200
+25% profit target hit
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**✅ DONE (Stop Loss)**
+```
+┌─────────────────┐ (red bg)
+🧪 ST2-240115-014 ✅ DONE
+─────────────────
+-$300
+300% stop loss hit
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**✅ DONE (Time Exit - SPX)**
+```
+┌─────────────────┐ (green bg)
+💰 ST1-240115-015 ✅ DONE
+─────────────────
++$45
+Time exit 11:30 ET
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**✅ DONE (Mandatory Close - SPY)**
+```
+┌─────────────────┐ (red bg)
+💰 ST2-240115-016 ✅ DONE
+─────────────────
+-$150
+21 DTE mandatory close
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**✅ DONE (Emergency Close)**
+```
+┌─────────────────┐ (green bg)
+🧪 ST1-240115-017 ✅ DONE
+─────────────────
++$80
+Emergency market close
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**❌ ERROR (Orphaned Orders)**
+```
+┌─────────────────┐ (gray bg)
+💰 ST1-240115-018 ❌ ERROR
+─────────────────
+$0
+Orphaned orders found
+
+
+─────────────────
+[🗃️ ARCHIVE]
+└─────────────────┘
+```
+
+**❌ ERROR (P/L Mismatch)**
+```
+┌─────────────────┐ (gray bg)
+🧪 ST2-240115-019 ❌ ERROR
+─────────────────
+$0
+P/L reconciliation error
+
+
 ─────────────────
 [🗃️ ARCHIVE]
 └─────────────────┘
 ```
 
 ### Column 7: ARCHIVE
+
+**Generic Layout Structure (9 lines - Minimal)**
 ```
 ┌─────────────────┐
-💰 SPXIC-240114-001 ✅
+[Mode] [ID] [Status]     ← Line 1: Header
+─────────────────        ← Line 2: Divider
+[P/L]                    ← Line 3: Primary value
+[Time Ago]               ← Line 4: Secondary info
+                         ← Line 5: Empty
+                         ← Line 6: Empty
+                         ← Line 7: Empty
+─────────────────        ← Line 8: Divider
+                         ← Line 9: Empty (no button)
+└─────────────────┘
+```
+
+**Status Examples:**
+
+**✅ DONE (Archived Profit)**
+```
+┌─────────────────┐ (green bg)
+💰 ST1-240114-001 ✅ DONE
 ─────────────────
 +$180
 31d ago
-└─────────────────┘
 
-┌─────────────────┐
-🧪 SPYST-240113-002 ❌
+
+
+─────────────────
+
+└─────────────────┘
+```
+
+**✅ DONE (Archived Loss)**
+```
+┌─────────────────┐ (red bg)
+🧪 ST2-240113-002 ✅ DONE
 ─────────────────
 -$150
 45d ago
-└─────────────────┘
 
-┌─────────────────┐
-💰 SPXIC-240115-003 ⏸️
+
+
+─────────────────
+
+└─────────────────┘
+```
+
+**⏸️ SKIPPED (No Trade)**
+```
+┌─────────────────┐ (gray bg)
+💰 ST1-240115-003 ⏸️ SKIPPED
 ─────────────────
 $ -
 Today
+
+
+
+─────────────────
+
 └─────────────────┘
 ```
+
+## State-to-UI Mapping Specification
+
+### Overview
+This section defines how trading states (business logic from PRD) map to UI/UX elements. Each column represents a specific state in the trading lifecycle, and UI elements change dynamically based on state conditions.
+
+### Column-State Relationship
+
+| Column | Primary State | Sub-States | UI Purpose |
+|--------|--------------|------------|------------|
+| 1. NEXT | SCHEDULED | READY, WAIT, WARNING | Shows upcoming instances |
+| 2. SEARCH OPTIONS | SEARCHING | DOING, ERROR | Finding option contracts |
+| 3. PLACE ORDER | ORDERING | DOING, ERROR | Executing trades |
+| 4. SETUP ORDER EXIT | PROTECTING | DOING, ERROR, UNPROTECTED | Setting exits |
+| 5. ACTIVE | ACTIVE | RUNNING, WARNING, ROLLING, ERROR | Live positions |
+| 6. CLOSED | CLOSED | DONE, ERROR | Completed trades |
+| 7. ARCHIVE | ARCHIVED | DONE, ERROR, SKIPPED | Historical records |
+
+### State-Driven UI Changes
+
+#### Column 1: NEXT (SCHEDULED State)
+**Sub-State → UI Mapping:**
+- `READY` → ✅ READY badge, green accent, [🗃️ SKIP] enabled
+- `WAIT` → ⏸️ WAIT badge, yellow accent, [🗃️ SKIP] enabled  
+- `WARNING` → ⚠️ WARNING badge, orange accent, [🗃️ SKIP] enabled
+- Priority: WARNING > READY > WAIT (for multi-instance display)
+
+**Dynamic Elements:**
+- Line 3: Execution time updates (countdown or absolute)
+- Line 4: Market status changes ("Market closed" → "Market opens in...")
+- Line 5: Empty for READY/WAIT, warning message for WARNING
+
+#### Column 2: SEARCH OPTIONS (SEARCHING State)
+**Sub-State → UI Mapping:**
+- `DOING` → 🔄 DOING badge, progress indicator
+- `ERROR` → ❌ ERROR badge, retry counter
+- Retry cycle: Alternates ❌ ERROR (waiting) ↔ 🔄 DOING (attempting)
+
+**Dynamic Elements:**
+- Line 3: Progress text ("Finding options..." → "All strategy legs")
+- Line 4: Details update ("Target options" → "Strike prices calculated")
+- Line 5: Empty → Error message on failure
+- Line 7: Retry counter "Retry X/10" (only on ERROR)
+- Button: [🔴 STOP] during retries, [🗃️ ARCHIVE] at MAX
+
+#### Column 3: PLACE ORDER (ORDERING State)
+**Sub-State → UI Mapping:**
+- `DOING` → 🔄 DOING badge, order progress
+- `ERROR` → ❌ ERROR badge, retry counter
+
+**Dynamic Elements:**
+- Line 3: "Placing order..." → "Order placed" or error
+- Line 4: Order type details
+- Line 5: Empty → Fill price or error message
+- Line 7: Retry counter "Retry X/12" (only on ERROR)
+- Button: [🔴 STOP] during retries, [🗃️ ARCHIVE] at MAX
+
+#### Column 4: SETUP ORDER EXIT (PROTECTING State)
+**Sub-State → UI Mapping:**
+- `DOING` → 🔄 DOING badge
+- `ERROR` → ❌ ERROR badge  
+- `UNPROTECTED` → 🚨 UNPROTECTED badge (critical state)
+
+**Dynamic Elements:**
+- Line 3: PT/SL order status
+- Line 4: Protection details or "NO PROTECTION"
+- Line 5: Empty or warning message
+- Button: [🔴 CLOSE MKT] always available
+
+#### Column 5: ACTIVE (ACTIVE State)
+**Sub-State → UI Mapping:**
+- `RUNNING` → ✅ RUNNING badge, green P/L if positive
+- `WARNING` → ⚠️ WARNING badge, threshold alerts
+- `ROLLING` → 🔄 ROLLING badge (strategy-specific)
+- `ERROR` → ❌ ERROR badge, critical issues
+
+**Dynamic Elements:**
+- Line 3: P/L updates in real-time (color: green/red/gray)
+- Line 4: PT display (if defined), never replaced
+- Line 5: Greeks with signs (D:+0.150 G:-0.020 T:-45.000 V:+12.000)
+- Line 6: DTE updates (centered when no TTC, or left column with TTC in right)
+- Line 7: Empty (reserved for future use)
+- Button: [🔴 CLOSE MKT] availability based on market hours
+
+**P/L Background Colors:**
+- Profit (>$0): Green gradient (#d4f4dd → #e8f8ed)
+- Loss (<$0): Red gradient (#fdd4d4 → #fee8e8)
+- Breakeven ($0): Gray gradient (#f0f0f0 → #f8f8f8)
+
+#### Column 6: CLOSED (CLOSED State)
+**Sub-State → UI Mapping:**
+- `DONE` → ✅ DONE badge (profit or successful exit)
+- `ERROR` → ❌ ERROR badge (stopped or failed)
+
+**Dynamic Elements:**
+- Line 3: Final P/L (with color coding)
+- Line 4: Exit reason ("PT reached", "SL triggered", "Time exit", etc.)
+- Line 5: Exit time
+- Background: P/L colored (green/red/gray)
+
+#### Column 7: ARCHIVE (ARCHIVED State)
+**Sub-State → UI Mapping:**
+- `DONE` → ✅ DONE badge
+- `ERROR` → ❌ ERROR badge
+- `SKIPPED` → ⏸️ SKIPPED badge
+
+**Dynamic Elements:**
+- Line 3: Final P/L or "$ -" for skipped
+- Line 4: Time ago ("3 days ago", "2 weeks ago")
+- Background: P/L colored or gray for skipped
+
+### State Transition Rules
+
+#### Forward Transitions (Normal Flow)
+1. SCHEDULED → SEARCHING (automatic at execution time)
+2. SEARCHING → ORDERING (when options found)
+3. ORDERING → PROTECTING (when order filled)
+4. PROTECTING → ACTIVE (when exits set or skipped)
+5. ACTIVE → CLOSED (on exit trigger)
+6. CLOSED → ARCHIVED (manual or automatic)
+
+#### Lateral Transitions (Error/Skip)
+- Any state → ARCHIVED (via [🗃️ SKIP] or [🔴 STOP])
+- ERROR at MAX retries → ARCHIVED (via [🗃️ ARCHIVE])
+- UNPROTECTED → CLOSED (via [🔴 CLOSE MKT])
+
+### Visual State Indicators
+
+#### Status Badge Hierarchy
+1. **Critical**: 🚨 UNPROTECTED, ❌ ERROR
+2. **Warning**: ⚠️ WARNING
+3. **Active**: 🔄 DOING, 🔄 ROLLING
+4. **Success**: ✅ READY, ✅ RUNNING, ✅ DONE
+5. **Neutral**: ⏸️ WAIT, ⏸️ SKIPPED
+
+#### Color Coding
+- **Green**: Success states, positive P/L
+- **Red**: Error states, negative P/L
+- **Orange**: Warning states
+- **Yellow**: Wait states
+- **Blue**: Active/processing states
+- **Gray**: Neutral/skipped states
+
+### Responsive State Updates
+
+#### Real-Time Updates (< 1 second)
+- P/L values in Column 5
+- Greeks in Column 5
+- Status badge changes during state transitions
+
+#### Periodic Updates (1-60 seconds)
+- Time countdowns (DTE, TTC)
+- "Time ago" in Column 7
+- Market status in Column 1
+
+#### Event-Driven Updates
+- State transitions trigger immediate UI updates
+- Error states trigger retry counter updates
+- User actions trigger confirmation dialogs (except ARCHIVE)
+
+### State Persistence
+
+#### Preserved During Transitions
+- Instance ID
+- Mode (💰 LIVE / 🧪 EXPERIMENT)
+- Strategy type (ST1, ST2, etc.)
+- Historical data (trades, times, prices)
+
+#### Reset During Transitions
+- Status badges (updated per new state)
+- Button availability
+- Progress indicators
+- Retry counters
+
+### Error State Handling
+
+#### Retry Behavior
+- Column 2: Max 10 retries, 30-second intervals
+- Column 3: Max 12 retries, 10-second intervals
+- Visual: Badge cycles ❌ ERROR ↔ 🔄 DOING during retries
+- Final: [🗃️ ARCHIVE] replaces [🔴 STOP] at MAX
+
+#### Unrecoverable Errors
+- Immediate ❌ ERROR badge
+- Error message in content area
+- Direct [🗃️ ARCHIVE] button (no retries)
+
+### Special State Considerations
+
+#### Rolling (Strategy-Specific)
+- Only for strategies with `positionManagement.adjustments.rolling.enabled: true`
+- Shows 🔄 ROLLING badge in Column 5
+- Maintains position continuity across roll events
+
+#### After-Hours Behavior
+- Column 1: Shows "Market closed" status
+- Column 5: Shows "After hours" in TTC field when market closed
+- [🔴 CLOSE MKT] availability depends on broker support
+
+#### Multi-Instance States
+- Column 1: Can show multiple instances with different sub-states
+- Priority display: WARNING > READY > WAIT
+- Visual stacking with slight offset
 
 ## Button Availability Rules
 - **[🗃️ SKIP]**: Only in Column 1 (NEXT)
@@ -1133,6 +1917,7 @@ Today
 | 1.1 | 2024-01-15 | Removed global mode switch, added per-strategy control |
 | 1.2 | 2024-01-15 | Refined state machine and visual indicators |
 | 2.0 | 2024-01-15 | Revolutionary Kanban board architecture with instance management |
+| 2.1 | 2025-01-17 | Updated technology stack with 2025 production standards (SSE, DaisyUI) |
 
 ## Next Steps
 

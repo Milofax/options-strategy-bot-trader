@@ -16,7 +16,7 @@
 - Create extensible architecture for additional strategies (Flyogonal, etc.)
 
 ### Background Context
-This project automates a proven options trading strategy that has demonstrated an 83.7% win rate over 300+ backtested trades. The current manual process requires daily attention at specific times, making it incompatible with travel or other commitments. By automating the strategy through Interactive Brokers' TWS API (via IB Gateway), we eliminate human error, ensure consistent execution, and free the trader from daily operational tasks while maintaining the strategy's edge. The system is designed with safety-first principles, ensuring that automation enhances rather than endangers the proven strategy's performance. Critical constraints include single trade per day limits, US market hours operation only, and strict adherence to the proven strategy without autonomous optimization.
+The idea for this project was to automate a proven options trading strategy that has demonstrated an 83.7% win rate over 300+ backtested trades: the "Daily 0DTE SPX Iron Condor". The current manual process requires daily attention at specific times, making it incompatible with travel or other commitments. By automating the strategy through Interactive Brokers' TWS API (via TWS or IB Gateway), we eliminate human error, ensure consistent execution, and free the trader from daily operational tasks while maintaining the strategy's edge. The system is designed with safety-first principles, ensuring that automation enhances rather than endangers the proven strategy's performance. Critical constraints include single trade per day limits, US market hours operation only, strict adherence to the proven strategy without autonomous optimization, and not overriding but intelligently accepting manual changes made in TWS by the user while a strategy order is currently running.
 
 **Strategy Validation & Correlation Considerations:** Both SPX Iron Condor (Phase 1) and SPY Strangle (Phase 2) strategies have been extensively backtested over 3+ year periods, demonstrating consistent performance across various market conditions. While SPX and SPY correlation during stress events is acknowledged, the proven historical performance and individual strategy risk controls (300% stop-losses, time-based exits) provide adequate risk management for the current implementation. Portfolio-level correlation analysis and VIX-based regime detection are designated for future enhancement phases but are not required for initial deployment given the robust individual strategy performance and comprehensive risk controls already in place.
 
@@ -25,6 +25,11 @@ This project automates a proven options trading strategy that has demonstrated a
 |------|---------|------------|--------|
 | 2024-01-14 | 1.0 | Initial PRD creation | John (PM) |
 | 2024-01-14 | 1.1 | Added risk management and experiment mode goals | John (PM) |
+| 2025-01-18 | 2.0 | MAJOR: Added Meta-Strategy Model for complete UI/Logic separation | John (PM) |
+| 2025-01-18 | 2.1 | MAJOR: Introduced 9-line Kanban card structure (universal UI abstraction) | John (PM) |
+| 2025-01-19 | 2.2 | Standardized emergency close terminology to CLOSE MKT | John (PM) |
+| 2025-01-19 | 2.3 | Clarified archiving rules: manual/30-day auto-archive flow for closed trades | John (PM) |
+| 2025-01-19 | 2.4 | Added OCA cancellation logic: only cancel if OCA group exists | John (PM) |
 
 ## Requirements
 
@@ -34,15 +39,15 @@ This project automates a proven options trading strategy that has demonstrated a
 - **FR2:** Select short strikes targeting Delta 15 (±1.9 tolerance, preferring higher delta when equidistant)
 - **FR3:** Place long strikes exactly 20 points away from selected short strikes
 - **FR4:** Submit Iron Condor as single combo/BAG order to ensure atomic execution
-- **FR5:** Create three-order OCA group for exits: 25% profit target (LMT), 11:30 ET close (MKT), 300% stop-loss (STP). **CRITICAL**: Discord CRITICAL alert on FIRST exit order failure (not after retries). On technical failure: automatic retry with configurable attempts (default: 30 attempts over 10 minutes). If all retries fail: Position enters UNPROTECTED state (no exit orders active), [🔴 CLOSE NOW] button appears, emergency market close required. Discord alerts sent immediately on first error and continuously during retry period with current P/L and [CLOSE NOW] option
+- **FR5:** Create three-order OCA group for exits: 25% profit target (LMT), 11:30 ET close (MKT), 300% stop-loss (STP). **CRITICAL**: Discord CRITICAL alert on FIRST exit order failure (not after retries). On technical failure: automatic retry with configurable attempts (default: 30 attempts over 10 minutes). If all retries fail: Position enters UNPROTECTED state (no exit orders active), emergency market close required. Discord alerts sent immediately on first error and continuously during retry period with current P/L and emergency close option
 - **FR6:** Support two trading modes: "Live" (real orders to TWS) and "Experiment" (hypothetical tracking only)
 - **FR7:** Maintain persistent state to recover from crashes and prevent duplicate trades
 - **FR8:** Send notifications via Discord for trade execution, errors, and critical events
 - **FR9:** Provide web dashboard showing real-time status, P/L, and trade history
-- **FR10:** Track and store all trade data including entry/exit prices, times, and reasons. Include user-editable notes field per trade for personal insights and commentary. Archive instances: manually via [🗃️ ARCHIVE] button OR automatically after configurable days (default: 30 days). Active/running trades cannot be archived
+- **FR10:** Track and store all trade data including entry/exit prices, times, and reasons. Include user-editable notes field per trade for personal insights and commentary. Archive instances: Closed instances can be manually archived OR automatically after configurable days (default: 30 days). Active/running trades cannot be archived. After emergency market close, instances move to closed state and follow standard archiving rules
 - **FR11:** Implement kill-switch accessible via Discord and web interface with confirmation dialog
 - **FR12:** Respect US market calendar, skipping weekends and market holidays
-- **FR13:** Order execution with retry mechanism: Submit order as LMT at current mid-price, cancel and retry with updated mid-price at configurable intervals (default: every 5 seconds) until configurable timeout (default: 1 minute total). After timeout or max retries, mark instance as failed - enable manual archiving via [🗃️ ARCHIVE] button. **Column 1 [🗃️ SKIP] button**: Available for READY/WAIT/WARNING status with mandatory safety confirmation dialog. **Column 2 buttons**: [🔴 STOP] during active work (with confirmation), [🗃️ ARCHIVE] after max retries (no confirmation). Stopped/skipped instances archive with ⏸️ status and $ -, failed instances with ❌ status and $ -
+- **FR13:** Order execution with retry mechanism: Submit order as LMT at current mid-price, cancel and retry with updated mid-price at configurable intervals (default: every 5 seconds) until configurable timeout (default: 1 minute total). After timeout or max retries, mark instance as failed - enable manual archiving. **Skip function**: Available for scheduled instances with mandatory safety confirmation. **Stop function**: Available during active operations with confirmation. Stopped/skipped instances archive with SKIPPED status and null P/L, failed instances with ERROR status and null P/L
 - **FR14:** Calculate position size based on configurable rules (fixed contracts or % of capital/margin)
 - **FR15:** Export trade history in CSV format for external analysis
 - **FR16:** Execute SPY Strangle trades weekly at configurable time (default Friday 18:00 CET / 12:00 ET, adjusted to 17:00 CET / 11:00 ET on half trading days) using 42 DTE options. Skip entry if mandatory 21 DTE close date falls on non-trading day or after December 31st to prevent year-end tax complications. Display skip reason transparently in UI (Phase 2)
@@ -54,6 +59,7 @@ This project automates a proven options trading strategy that has demonstrated a
 - **FR22:** Instance ID format: [STRATEGY_ABBREV]-[YYMMDD]-[###] where STRATEGY_ABBREV is max 6 characters (e.g., SPXIC-240115-001). Each strategy must define its unique abbreviation
 - **FR23:** Order retry configuration: user-configurable retry parameters per strategy in settings. **Entry orders**: Default 5-second intervals for 1 minute total (12 attempts). **Exit orders**: Default 30 attempts every 20 seconds (10 minutes total) before automatic emergency close. All retry mechanisms use updated mid-price on each attempt
 - **FR24:** TWS state reconciliation: Poll TWS every 10 seconds during retry operations to detect manual interventions (position closed, OCA manually set). Adapt system state accordingly and notify via Discord
+- **FR25:** Orphaned order detection: After position closure, scan TWS for any open orders matching the closed trade's strike prices and expiration dates. This includes both OCA group orders and standalone orders that may have been manually created. Alert via Discord CRITICAL when orphaned orders are detected, requiring manual cleanup in TWS before archiving
 
 ### Non-Functional Requirements
 
@@ -67,11 +73,608 @@ This project automates a proven options trading strategy that has demonstrated a
 - **NFR8:** Architecture must support addition of new strategies without modifying core engine
 - **NFR9:** System must handle IB Gateway daily restart gracefully at any configured time
 - **NFR10:** Web interface must be mobile-responsive for iPhone access
-- **NFR11:** Display times in user-configurable timezone (default CET) with market time (ET) always shown in parentheses. All time displays must show both user timezone and market timezone simultaneously (e.g., "18:00 CET (12:00 ET)"). 
-  - **Column 1 NEXT instances**: First content line shows execution time with prefix based on temporal distance: "Today" (same day), "Tom" (tomorrow), weekday abbreviation (2-6 days), full locale date format (>6 days). Second content line in ✅ Ready and ⏸️ Wait status shows remaining time until execution: "in 2h 15m" (same day) or "in 5 days" (future days). At execution time, instances automatically progress from NEXT (Column 1) to SEARCH OPTIONS (Column 2).
-  - **Column 2 SEARCH OPTIONS instances**: Status types: 🔄 DOING (actively searching OR retry in progress), ❌ ERROR (search failed, waiting for retry OR max retries reached). For 🔄 DOING: Line 3 shows progress ("Finding delta 15...", "Retrying search..."), Line 4 shows details ("Scanning strikes...", "Attempt 3/10"). For ❌ ERROR: Line 3 shows error message ("No market data", "No TWS connection", "No options found", "Search timeout", "Search failed"), Line 4 shows retry counter ("Retry 5/10" or "Retry 10/10 (MAX)"). Error-Retry cycle: ❌ ERROR → waits 20 seconds (globally configurable per error type) → 🔄 DOING → retry → success/failure. **Button logic**: [🔴 STOP] during active work (with confirmation), [🗃️ ARCHIVE] only at max retries (no confirmation). After successful search, instance automatically progresses to Column 3 (PLACE ORDER). Failed instances move to ARCHIVE with ❌ status after manual archiving or 30-day auto-archive.
-  - **Column 3 PLACE ORDER instances**: Status types: 🔄 DOING (placing order OR order modify in progress), ❌ ERROR (order failed, retry in progress OR max retries reached). For 🔄 DOING: Line 3 shows progress ("Placing order..." for initial submit, "Waiting for fill..." after order modifications), Line 4 shows current LMT price ("LMT: $2.50" initial, "LMT: $2.45 (Try 3/X)" after modifications). For ❌ ERROR: Line 3 shows error message, Line 4 shows retry counter ("Retry 5/10") or failure state. **Error types by mode**: LIVE instances can encounter "Order rejected", "Insufficient margin", "Order cancelled" (all lead directly to "Order failed" state), "No TWS connection" (allows 10 retries with 20-second intervals, globally configurable retry count and intervals per error type). EXPERIMENT instances only encounter "No TWS connection" (requires TWS for current mid-price simulation). **Order retry mechanisms**: (1) System Error Retries - 10 attempts with 20-second intervals (globally configurable retry count and intervals per error type) for connection/system failures; (2) Order Modify Retries - configurable per strategy (default: 5-second intervals for 1-minute maximum duration) for unfilled orders at mid-price. **Button logic**: [🔴 STOP] during retries (with confirmation), [🗃️ ARCHIVE] when "Order failed" state reached (no confirmation). **Definition of Done (DoD)**: SUCCESS - automatic progression to Column 4 when order 100% filled and position confirmed in TWS; FAILURE - instances move to ARCHIVE with ❌ status after manual archiving or 30-day auto-archive; MANUAL STOP - direct move to ARCHIVE with ⏸️ status.
-  - **Column 4 SETUP ORDER EXIT instances**: **CRITICAL COLUMN** - Any failure = UNPROTECTED position (unlimited risk). Status types: 🔄 DOING (setting OCA group), ❌ ERROR (exit setup failed, retry in progress), 🚨 UNPROTECTED (max retries reached, no exit orders). For 🔄 DOING: Line 3 shows "Setting OCA...", Line 4 shows "Validating group...". For ❌ ERROR: Line 3 shows error ("No TWS connection", "No market data", "Order timeout"), Line 4 shows "Retry X/30". **Discord CRITICAL alert on FIRST error** (not after retries) with [CLOSE NOW] option. Errors: "No TWS connection", "No market data" (both 30 retries @ 20s), "Order timeout" (30 retries @ 20s), "OCA rejected" (programming error, no retry). For 🚨 UNPROTECTED: Line 3 shows "🚨 UNPROTECTED", Line 4 shows "No exit orders!", Button shows [🔴 CLOSE NOW]. After position closed → [🗃️ ARCHIVE] available. **Price Rounding Rule**: All LMT/STP prices rounded to $0.05 increments. **DoD**: SUCCESS - all 3 exit orders accepted, automatic progression to Column 5; FAILURE - enters UNPROTECTED state requiring emergency market close.
+- **NFR11:** Display times in user-configurable timezone (default CET) with market time (ET) always shown in parentheses. All time displays must show both user timezone and market timezone simultaneously (e.g., "18:00 CET (12:00 ET)").
+
+## Meta-Strategy Model
+
+### Overview
+The Meta-Strategy Model provides an abstract framework for defining options trading strategies in a consistent, extensible manner. This model enables the UI/UX to remain strategy-agnostic while supporting diverse trading approaches. Future strategies can be added through configuration without modifying core system architecture.
+
+### Core Components
+
+#### 1. Strategy Identity
+```
+IDENTITY
+├── id: Unique strategy identifier (e.g., "STRAT1", "STRAT2")
+├── name: Human-readable name
+├── abbreviation: Max 6 chars for instance IDs (e.g., "SPXIC", "SPYST")
+├── underlying: Target asset (e.g., "SPX", "SPY")
+└── mode: Trading mode (LIVE | EXPERIMENT)
+```
+
+#### 2. Schedule
+```
+SCHEDULE
+├── trigger: Entry trigger type (TIME_BASED | EVENT_BASED)
+├── frequency: Execution pattern (DAILY | WEEKLY | MONTHLY | CUSTOM)
+├── executionTime: Specific time in ET (e.g., "09:32", "18:00")
+├── executionDays: Days of week or specific dates
+├── marketConditions: Required conditions (MARKET_OPEN | SPECIFIC_TIME)
+└── skipConditions: When to skip execution (holidays, year-end, etc.)
+```
+
+#### 3. Entry Configuration
+```
+ENTRY
+├── legs: Array of option legs
+│   ├── type: CALL | PUT
+│   ├── position: LONG | SHORT
+│   ├── strikeSelection:
+│   │   ├── method: DELTA | ATM_OFFSET | EXPECTED_MOVE | FIXED
+│   │   ├── target: Target value (e.g., 15 for delta)
+│   │   └── tolerance: Acceptable variance (e.g., ±1.9)
+│   └── quantity: Number of contracts
+├── dteTarget: Days to expiration (0, 7, 42, etc.)
+├── orderType: COMBO | INDIVIDUAL
+├── entryConditions:
+│   ├── maxSpread: Maximum bid-ask spread
+│   └── deltaRange: Acceptable delta range
+└── retryConfig:
+    ├── maxAttempts: Maximum retry attempts
+    ├── interval: Seconds between retries
+    └── priceUpdate: Refresh mid-price on retry (true/false)
+```
+
+#### 4. Position Management
+```
+POSITION_MANAGEMENT
+├── monitoring:
+│   ├── greeks: [DELTA, GAMMA, THETA, VEGA]
+│   ├── pl: Track profit/loss
+│   └── updateFrequency: Seconds between updates
+├── adjustments:
+│   ├── rolling:
+│   │   ├── enabled: true/false
+│   │   ├── trigger: Conditions for rolling (e.g., "strike_tested")
+│   │   ├── dteThreshold: DTE when rolling allowed (e.g., 28)
+│   │   ├── targetDelta: New position delta target
+│   │   └── maxRolls: Maximum rolls per position (e.g., 1)
+│   └── other: Future adjustment types
+└── monitoring:
+    ├── alerts:
+    │   ├── breachWarning: Alert when position approaches limits
+    │   └── rollNotification: Alert when roll conditions met
+    └── activeTradeMonitoring:
+        ├── warnings: List of warning conditions during ACTIVE state
+        │   ├── id: Unique warning identifier
+        │   ├── condition: Trigger condition (e.g., "pl_threshold", "strike_touch")
+        │   ├── threshold: Numeric threshold if applicable
+        │   ├── message: Short message for Line 7 display (max 20 chars)
+        │   ├── fullMessage: Complete warning description
+        │   └── discordLevel: INFO | WARNING | CRITICAL
+        └── errors: List of error conditions during ACTIVE state
+            ├── id: Unique error identifier
+            ├── condition: Error trigger (e.g., "data_loss", "connection_lost")
+            ├── message: Short message for Line 7 display (max 20 chars)
+            ├── fullMessage: Complete error description
+            └── discordLevel: WARNING | CRITICAL
+```
+
+#### 5. Exit Strategy
+```
+EXIT
+├── orders: Array of exit orders for OCA group
+│   ├── id: Unique exit order identifier
+│   ├── type: Order type (LMT | STP | MKT)
+│   ├── condition:
+│   │   ├── type: PERCENTAGE | FIXED_AMOUNT | SPECIFIC_TIME | DTE_BASED
+│   │   └── value: Trigger value (e.g., 25, "11:30", 21)
+│   ├── exitReason: Standardized reason for trade closure
+│   └── discordMessage: Template for Discord notification
+├── ocaGroup: Link all exit orders (true/false)
+├── manualExits: Non-OCA exit scenarios
+│   ├── id: Exit scenario identifier
+│   ├── exitReason: Standardized closure reason
+│   └── discordMessage: Notification template
+└── emergencyClose:
+    ├── retryAttempts: Attempts before UNPROTECTED state
+    └── alertLevel: CRITICAL | WARNING
+```
+
+### Concrete Strategy Specifications
+
+#### Strategy A: SPX 0DTE Iron Condor (STRAT1)
+```yaml
+identity:
+  id: STRAT1
+  name: "SPX 0DTE Iron Condor"
+  abbreviation: "SPXIC"
+  underlying: "SPX"
+  mode: EXPERIMENT  # Default, user switchable
+
+schedule:
+  trigger: TIME_BASED
+  frequency: DAILY
+  executionTime: "09:32"  # ET
+  executionDays: [MON, TUE, WED, THU, FRI]
+  marketConditions: MARKET_OPEN
+  skipConditions: ["US_MARKET_HOLIDAYS"]
+
+entry:
+  legs:
+    - type: PUT
+      position: SHORT
+      strikeSelection:
+        method: DELTA
+        target: 15
+        tolerance: 1.9
+      quantity: 1
+    - type: PUT
+      position: LONG
+      strikeSelection:
+        method: ATM_OFFSET
+        target: -20  # 20 points below short put
+        tolerance: 0
+      quantity: 1
+    - type: CALL
+      position: SHORT
+      strikeSelection:
+        method: DELTA
+        target: 15
+        tolerance: 1.9
+      quantity: 1
+    - type: CALL
+      position: LONG
+      strikeSelection:
+        method: ATM_OFFSET
+        target: 20  # 20 points above short call
+        tolerance: 0
+      quantity: 1
+  dteTarget: 0
+  orderType: COMBO
+  entryConditions:
+    maxSpread: 0.50
+    deltaRange: [13.1, 16.9]
+  retryConfig:
+    maxAttempts: 12
+    interval: 5
+    priceUpdate: true
+
+positionManagement:
+  monitoring:
+    greeks: [DELTA, GAMMA, THETA, VEGA]
+    pl: true
+    updateFrequency: 10
+  adjustments:
+    rolling:
+      enabled: false
+  alerts:
+    breachWarning: true
+  activeTradeMonitoring:
+    warnings:
+      - id: "W_SPX_STRIKE_TOUCH"
+        condition: "strike_touch"
+        threshold: null
+        message: "Strike touched"
+        fullMessage: "Short strike has been touched or breached (ATM/ITM)"
+        discordLevel: WARNING
+      - id: "W_SPX_SL_APPROACH"
+        condition: "pl_threshold"
+        threshold: 50  # 50% of stop-loss (150% when SL is 300%)
+        message: "Approaching SL"
+        fullMessage: "P/L approaching 50% of stop-loss threshold"
+        discordLevel: WARNING
+    errors:
+      - id: "E_SPX_DATA_LOSS"
+        condition: "data_loss"
+        message: "No market data"
+        fullMessage: "Market data feed lost, unable to calculate Greeks/P/L"
+        discordLevel: CRITICAL
+      - id: "E_SPX_CONNECTION"
+        condition: "connection_lost"
+        message: "TWS disconnected"
+        fullMessage: "Connection to TWS/IB Gateway lost"
+        discordLevel: CRITICAL
+
+exit:
+  orders:
+    - id: "profit_target"
+      type: LMT
+      condition:
+        type: PERCENTAGE
+        value: 25
+      exitReason: "25% profit target hit"
+      discordMessage: "Profit target reached: {{final_pl}}"
+    - id: "stop_loss"
+      type: STP
+      condition:
+        type: PERCENTAGE
+        value: 300
+      exitReason: "300% stop loss hit"
+      discordMessage: "Stop loss triggered: {{final_pl}}"
+    - id: "time_exit"
+      type: MKT
+      condition:
+        type: SPECIFIC_TIME
+        value: "11:30"  # ET
+      exitReason: "Time exit 11:30 ET"
+      discordMessage: "Time-based exit at 11:30 ET: {{final_pl}}"
+  ocaGroup: true
+  manualExits:
+    - id: "emergency_close"
+      exitReason: "Emergency market close"
+      discordMessage: "Emergency close executed: {{final_pl}}"
+    - id: "manual_close"
+      exitReason: "Manual close by user"
+      discordMessage: "Manual close: {{final_pl}}"
+  emergencyClose:
+    retryAttempts: 30
+    alertLevel: CRITICAL
+```
+
+#### Strategy B: SPY 42 DTE Strangle with Rolling (STRAT2)
+```yaml
+identity:
+  id: STRAT2
+  name: "SPY 42 DTE Strangle"
+  abbreviation: "SPYST"
+  underlying: "SPY"
+  mode: EXPERIMENT  # Default, user switchable
+
+schedule:
+  trigger: TIME_BASED
+  frequency: WEEKLY
+  executionTime: "18:00"  # CET (12:00 ET)
+  executionDays: [FRI]
+  marketConditions: SPECIFIC_TIME
+  skipConditions: ["US_MARKET_HOLIDAYS", "YEAR_END_TAX_PERIOD"]
+
+entry:
+  legs:
+    - type: PUT
+      position: SHORT
+      strikeSelection:
+        method: EXPECTED_MOVE
+        target: 0.85  # 85% of ATM straddle
+        tolerance: 0
+      quantity: 1
+    - type: CALL
+      position: SHORT
+      strikeSelection:
+        method: EXPECTED_MOVE
+        target: 0.85  # 85% of ATM straddle
+        tolerance: 0
+      quantity: 1
+  dteTarget: 42
+  orderType: COMBO
+  entryConditions:
+    maxSpread: 1.00
+  retryConfig:
+    maxAttempts: 12
+    interval: 5
+    priceUpdate: true
+
+positionManagement:
+  monitoring:
+    greeks: [DELTA, GAMMA, THETA, VEGA]
+    pl: true
+    updateFrequency: 10
+  adjustments:
+    rolling:
+      enabled: true
+      trigger: "strike_tested"  # When strike becomes ATM/ITM
+      dteThreshold: 28
+      targetDelta: 30
+      tolerance: 1.9
+      maxRolls: 1  # First-Touch-Rule
+  alerts:
+    breachWarning: true
+    rollNotification: true
+  activeTradeMonitoring:
+    warnings:
+      - id: "W_SPY_STRIKE_TEST"
+        condition: "strike_tested_dte"
+        threshold: 28  # DTE threshold for rolling eligibility
+        message: "Strike tested ≤28d"
+        fullMessage: "Strike tested (ATM/ITM) at ≤28 DTE, rolling eligible"
+        discordLevel: WARNING
+      - id: "W_SPY_SECOND_TOUCH"
+        condition: "second_strike_touch"
+        threshold: null
+        message: "2nd strike touch"
+        fullMessage: "Strike touched again after First-Touch-Rule already applied"
+        discordLevel: WARNING
+      - id: "W_SPY_CLOSE_APPROACH"
+        condition: "mandatory_close_approach"
+        threshold: 3  # 3 trading days before 21 DTE
+        message: "Close in 3 days"
+        fullMessage: "Mandatory 21 DTE close approaching in 3 trading days"
+        discordLevel: INFO
+      - id: "W_SPY_SL_APPROACH"
+        condition: "pl_threshold"
+        threshold: 50  # 50% of stop-loss
+        message: "Approaching SL"
+        fullMessage: "P/L approaching 50% of stop-loss threshold"
+        discordLevel: WARNING
+    errors:
+      - id: "E_SPY_ROLL_FAILED"
+        condition: "roll_failed"
+        message: "Roll failed"
+        fullMessage: "Rolling operation failed, manual intervention required"
+        discordLevel: CRITICAL
+      - id: "E_SPY_DATA_LOSS"
+        condition: "data_loss"
+        message: "No market data"
+        fullMessage: "Market data feed lost, unable to calculate Greeks/P/L"
+        discordLevel: CRITICAL
+      - id: "E_SPY_CONNECTION"
+        condition: "connection_lost"
+        message: "TWS disconnected"
+        fullMessage: "Connection to TWS/IB Gateway lost"
+        discordLevel: CRITICAL
+    activities:
+      - id: "A_SPY_ROLLING"
+        status: "ROLLING"
+        message: "Rolling position"
+        fullMessage: "Rolling untested side to target delta"
+        discordLevel: INFO
+
+exit:
+  orders:
+    - id: "profit_target"
+      type: LMT
+      condition:
+        type: PERCENTAGE
+        value: 50
+      exitReason: "50% profit target hit"
+      discordMessage: "Profit target reached: {{final_pl}}"
+    - id: "stop_loss"
+      type: STP
+      condition:
+        type: PERCENTAGE
+        value: 300
+      exitReason: "300% stop loss hit"
+      discordMessage: "Stop loss triggered: {{final_pl}}"
+    - id: "mandatory_close"
+      type: MKT
+      condition:
+        type: DTE_BASED
+        value: 21  # Close at 21 DTE
+      exitReason: "21 DTE mandatory close"
+      discordMessage: "Mandatory 21 DTE close: {{final_pl}}"
+  ocaGroup: true
+  manualExits:
+    - id: "emergency_close"
+      exitReason: "Emergency market close"
+      discordMessage: "Emergency close executed: {{final_pl}}"
+    - id: "manual_close"
+      exitReason: "Manual close by user"
+      discordMessage: "Manual close: {{final_pl}}"
+  emergencyClose:
+    retryAttempts: 30
+    alertLevel: CRITICAL
+```
+
+### Extensibility Patterns
+
+#### Required Components
+Every strategy MUST define:
+- Identity (id, name, abbreviation, underlying)
+- Schedule (trigger, frequency, executionTime)
+- Entry (at least one leg with strike selection)
+- Exit (at least one exit condition)
+
+#### Optional Components
+Strategies MAY include:
+- Position adjustments (rolling, hedging)
+- Multiple exit conditions
+- Custom alerts and notifications
+- Strategy-specific parameters
+
+#### Validation Rules
+1. Strategy ID must be unique across system
+2. Abbreviation must be ≤6 characters
+3. At least one exit condition required
+4. DTE target must be ≥0
+5. All monetary values rounded to $0.05
+
+#### Future: Configuration File Format
+Strategies will be definable via YAML/JSON configuration files, enabling:
+- Hot-loading of new strategies without code changes
+- Version control of strategy parameters
+- A/B testing of strategy variations
+- User-defined custom strategies
+
+### Instance Lifecycle Mapping
+
+Every strategy instance follows the same lifecycle through the Kanban columns:
+
+```
+SCHEDULED → SEARCHING → ORDERING → PROTECTING → ACTIVE → CLOSED → ARCHIVED
+```
+
+Instance ID format: `[abbreviation]-[YYMMDD]-[###]`
+- SPXIC-240115-001 (Strategy A instance)
+- SPYST-240115-001 (Strategy B instance)
+
+## Trading State Model
+
+### Overview
+The Trading State Model defines the abstract states and transitions for all trading instances, independent of UI implementation. Each state represents a distinct phase in the trading lifecycle with specific business logic and requirements.
+
+### Core States
+
+#### SCHEDULED
+- **Purpose**: Instance is scheduled for future execution
+- **Sub-states**: READY (market open), WAIT (market closed), WARNING (configuration issues)
+- **Entry**: Created when strategy schedule triggers
+- **Exit**: Automatically transitions to SEARCHING at scheduled execution time
+- **Actions**: Can be skipped manually with confirmation
+
+#### SEARCHING
+- **Purpose**: Finding appropriate option contracts
+- **Sub-states**: DOING (active search), ERROR (search failed)
+- **Entry**: From SCHEDULED at execution time
+- **Exit**: To ORDERING when options found, or ARCHIVED if failed/stopped
+- **Retry Logic**: Configurable retries (default: 10 attempts at 30-second intervals)
+- **Actions**: Can be stopped manually during execution
+
+#### ORDERING
+- **Purpose**: Placing and filling the order
+- **Sub-states**: DOING (order active), ERROR (order failed)
+- **Entry**: From SEARCHING with valid options
+- **Exit**: To PROTECTING when filled, or ARCHIVED if failed/stopped
+- **Retry Logic**: 
+  - System errors: 10 attempts at 20-second intervals
+  - Order modifications: Per-strategy configuration (default: 5-second intervals for 1 minute)
+- **Actions**: Can be stopped manually during execution
+
+#### PROTECTING
+- **Purpose**: Setting up exit orders (OCA group)
+- **Sub-states**: DOING (setting exits), ERROR (setup failed), UNPROTECTED (no protection)
+- **Entry**: From ORDERING with filled position
+- **Exit**: To ACTIVE when protected, or emergency close if UNPROTECTED
+- **Critical**: FIRST failure triggers immediate Discord alert
+- **Retry Logic**: 30 attempts at 20-second intervals before UNPROTECTED state
+- **Actions**: Emergency market close always available
+
+#### ACTIVE
+- **Purpose**: Position is live and being monitored
+- **Sub-states**: RUNNING (normal), WARNING (threshold breach), ROLLING (adjustment), ERROR (critical issue)
+- **Entry**: From PROTECTING with exit orders confirmed
+- **Exit**: To CLOSED when exit triggers
+- **Monitoring**: Real-time P/L, Greeks, time remaining
+- **Actions**: Emergency market close based on market hours
+
+#### CLOSED
+- **Purpose**: Position has been closed and finalized
+- **Sub-states**: 
+  - DONE (successful exit via any defined exit condition)
+  - ERROR (orphaned orders detected, reconciliation issues)
+- **Entry**: From ACTIVE via exit trigger or manual close
+- **Exit**: To ARCHIVED manually or after configured period (default: 30 days)
+- **Data**: 
+  - Final P/L from TWS
+  - Exit reason from strategy configuration
+  - Close timestamp
+  - Order cleanup status
+- **Validation**: Post-close orphaned order detection
+- **Actions**: Manual archive, orphaned order cleanup
+
+#### ARCHIVED
+- **Purpose**: Historical record preservation
+- **Sub-states**: DONE (completed), ERROR (failed), SKIPPED (never executed)
+- **Entry**: From CLOSED or directly from any state via skip/stop
+- **Exit**: None (terminal state)
+- **Data**: Complete trade history
+- **Actions**: None (read-only)
+
+### State Transition Rules
+
+#### Normal Flow
+1. SCHEDULED → SEARCHING (automatic at execution time)
+2. SEARCHING → ORDERING (options found)
+3. ORDERING → PROTECTING (order filled)
+4. PROTECTING → ACTIVE (exits confirmed)
+5. ACTIVE → CLOSED (exit triggered)
+6. CLOSED → ARCHIVED (manual or automatic)
+
+#### Error/Skip Flows
+- Any state → ARCHIVED (via manual skip/stop)
+- ERROR at max retries → ARCHIVED (manual archive required)
+- UNPROTECTED → emergency close → CLOSED → ARCHIVED
+
+### Business Rules by State
+
+#### Retry Behavior
+- System must track retry attempts per error type
+- Configurable retry intervals and max attempts per state
+- Alternating status during retry cycles (ERROR ↔ DOING)
+- Automatic progression to terminal state at max retries
+
+#### Critical Alerts
+- PROTECTING state: First error triggers immediate Discord alert
+- UNPROTECTED state: Continuous alerts with P/L and emergency close option
+- System failures: Alert on connection loss or data feed issues
+
+#### State Persistence
+- All state transitions must be logged with timestamp
+- Current state must survive system restart
+- Historical states preserved for audit trail
+- State reconciliation with broker on reconnection
+
+#### Post-Close Validation (CLOSED State)
+- Orphaned order detection must run after every position closure
+- Scan for orders matching exact strike prices and expiration dates
+- Include both system-created and manually-created orders in scan
+- Block archiving if orphaned orders detected (require manual cleanup)
+- Generate CRITICAL alert with specific order details for cleanup
+
+#### Discord Notification Mapping by State/Column
+
+**Column 1 (SCHEDULED/NEXT):**
+- READY status: INFO - "Strategy ready for execution at [time]"
+- WARNING status: WARNING - System issues (TWS disconnected, insufficient capital)
+- Manual SKIP: INFO - "Instance skipped by user"
+
+**Column 2 (SEARCHING/SEARCH OPTIONS):**
+- Progress updates: INFO - "Searching for options..." (digest mode)
+- Error with retry: WARNING - "Search failed, retry X/Y"
+- Max retries reached: CRITICAL - "Option search failed after max retries"
+
+**Column 3 (ORDERING/PLACE ORDER):**
+- Order placed: INFO - "Placing order at $X.XX"
+- Order filled: INFO - "Order filled at $X.XX"
+- Order rejected (LIVE): CRITICAL - "Order rejected: [reason]"
+- Connection lost: CRITICAL - "TWS connection lost during order placement"
+
+**Column 4 (PROTECTING/SETUP ORDER EXIT):**
+- First failure: CRITICAL - "Exit order setup failed - attempting retry"
+- During retries: WARNING - "Exit order retry X/Y - current P/L: $XXX"
+- UNPROTECTED state: CRITICAL - "🚨 POSITION UNPROTECTED - No exit orders active"
+- Manual close: INFO - "Emergency market close executed"
+
+**Column 5 (ACTIVE):**
+- Position opened: INFO - "Position active - P/L: $XXX"
+- Warnings from activeTradeMonitoring: Per strategy definition
+- Errors from activeTradeMonitoring: Per strategy definition
+- Activities (e.g., rolling): INFO - Per strategy definition
+- Manual close: INFO - "Position closed manually at $XXX"
+
+**Column 6 (CLOSED):**
+- Position closed: INFO - "Position closed - Final P/L: $XXX"
+- Exit reason: INFO - Uses exitReason from strategy configuration
+- Orphaned orders detected: CRITICAL - "Orphaned orders found for [Instance ID]: [Order details]. Manual cleanup required in TWS"
+- P/L mismatch: WARNING - "P/L discrepancy for [Instance ID]. System: $X, TWS: $Y"
+- Archive action: INFO - "Instance archived"
+
+**Column 7 (ARCHIVE):**
+- Auto-archive: INFO - "Instance auto-archived after 30 days"
+
+**Global Notifications:**
+- Emergency Stop All: CRITICAL - "EMERGENCY STOP activated - closing all positions"
+- TWS connection lost >60s: CRITICAL - "TWS connection lost for >60 seconds"
+- Daily summary: INFO - Market close digest with day's activity
+- Account warnings: Per threshold configuration (10% drawdown, margin limits)
+
+#### Time-Based Transitions
+- SCHEDULED → SEARCHING: At configured execution time
+- ACTIVE time-based exits: At configured time or DTE threshold
+- CLOSED → ARCHIVED: After configured retention period
+
+### Configuration Requirements
+
+Each strategy must define:
+- Retry parameters per state (attempts, intervals)
+- Alert thresholds and notification preferences
+- Archive retention period
+- Emergency close availability rules
+
+System must provide:
+- Global default retry settings
+- State transition logging
+- Recovery from interrupted states
+- Manual state override capabilities (with audit)
 
 ## User Interface Design Goals
 
@@ -97,7 +700,7 @@ Create a confidence-inspiring, glanceable monitoring interface that provides imm
 LEVEL 1: System Header
 ├── TWS Connection Status
 ├── Settings Access [⚙️]
-└── Emergency Stop [🔴] (top-right, always visible)
+└── Emergency Stop (top-right, always visible)
 
 LEVEL 2: Strategy Cards
 ├── Strategy Name & Status (Active/Waiting)
@@ -117,7 +720,7 @@ LEVEL 3: Trade Details (On-Demand)
   - 7-column flow: NEXT → SEARCH OPTIONS → PLACE ORDER → SETUP ORDER EXIT → ACTIVE → CLOSED → ARCHIVE
   - Strategy swimlanes with independent mode controls ([LIVE]/[EXPERIMENT])
   - Instance-level status indicators (✅Good 🔄Doing ⏸️Wait ❌Error)
-  - Multi-level controls: Global [🔴 STOP ALL], Strategy mode toggles, Instance [🔴 STOP]
+  - Multi-level controls: Global emergency stop, Strategy mode toggles, Instance stop
   - Portfolio P/L aggregation by mode (Live/Experiment/Total)
   - Error instances remain in columns to force attention ("clog the flow")
 - **Strategy Detail View:**
@@ -159,9 +762,9 @@ Single repository containing all components (bot, web dashboard, Discord bot) fo
 
 ### Additional Technical Assumptions and Requests
 - **Language:** Python 3.11+ for all components
-- **IB API Library:** ib_insync for TWS communication (TWS preferred over IB Gateway for auto-login)
+- **IB API Library:** ib_async for TWS communication (CRITICAL UPDATE: ib_insync unmaintained since 2024, ib_async v2.0.1 is the actively maintained, production-ready successor)
 - **Web Framework:** FastAPI for REST API and web dashboard backend
-- **Frontend:** HTML + HTMX + Chart.js (no build pipeline required)
+- **Frontend:** HTML + HTMX + Chart.js with Tailwind CSS + DaisyUI (2025 production pattern: Server-Sent Events for real-time updates, HTML-first approach, professional UI components, no build pipeline required)
 - **Discord Library:** discord.py for bot implementation
 - **Database:** SQLite for trade history and state management (migration path to PostgreSQL if needed)
 - **Container:** Podman for deployment on Mac Mini server
@@ -176,7 +779,7 @@ Single repository containing all components (bot, web dashboard, Discord bot) fo
   - Python cryptography library (Fernet) for symmetric encryption
 
 ### Order Execution Framework Note for Architect
-All strategies use unified order execution pattern: mid-price calculation from IB quotes, LMT order submission, and configurable retry logic with updated pricing on each attempt. Implement generic order execution engine with per-strategy configuration parameters: retry intervals (default: 5 seconds), timeout duration (default: 1 minute), and max attempts (default: 12). Strategy-specific execution windows (SPX IC: critical 9:32-9:33 ET timing, SPY Strangle: relaxed Friday evening timing) handled through different timeout configurations. All strategies use combo/BAG orders for atomic execution. This unified approach reduces code duplication while maintaining strategy-specific flexibility.
+All strategies use unified order execution pattern: mid-price calculation from IB quotes, LMT order submission, and configurable retry logic with updated pricing on each attempt. Implement generic order execution engine with per-strategy configuration parameters: retry intervals (default: 5 seconds), timeout duration (default: 1 minute), and max attempts (default: 12). Strategy-specific execution windows (SPX IC: critical 9:32-9:33 ET timing, SPY Strangle: relaxed Friday evening timing) handled through different timeout configurations. All strategies use combo/BAG orders for atomic execution with ib_async bracketOrder() helper function and oneCancelsAll() method for OCA group management. **OCA Implementation Details**: Use ib.bracketOrder('BUY', quantity, limitPrice, takeProfitPrice, stopLossPrice) to create three-order structure, then place each order individually. For manual control, use oneCancelsAll([profit_order, stop_order, time_order], ocaGroup="strategy_id", ocaType=1) for custom OCA groups. This unified approach reduces code duplication while maintaining strategy-specific flexibility.
 
 ### Operational Edge Case Handling Requirements for Architect
 The system must handle critical operational failures gracefully to prevent capital loss and ensure reliable automated trading. Key requirements:
@@ -350,8 +953,8 @@ Enhance platform for multiple concurrent strategies, collision detection, indepe
 5. Verify all 3 exit orders are accepted by IB
 6. **CRITICAL**: If ANY exit order setup fails:
    - Instance enters UNPROTECTED state (position open, no exit orders)
-   - Discord CRITICAL alert sent IMMEDIATELY with [CLOSE NOW] option
-   - Dashboard shows 🚨 UNPROTECTED status with [🔴 CLOSE NOW] button
+   - Discord CRITICAL alert sent IMMEDIATELY with [CLOSE MKT] option
+   - Dashboard shows 🚨 UNPROTECTED status with [🔴 CLOSE MKT] button
    - Manual intervention required - emergency market close
    - Only after position closed → [🗃️ ARCHIVE] available
 7. Only mark trade as "complete" when entry AND all exits are confirmed
@@ -836,3 +1439,89 @@ Please review this PRD and create detailed UI/UX specifications for the SPX 0DTE
 
 ### Architect Prompt
 Please review this PRD and create a comprehensive technical architecture document for the SPX 0DTE Iron Condor Trading Bot, detailing the system design, component interactions, data flow, and implementation approach using the specified technology stack (Python, ib_insync, FastAPI, HTMX, Discord.py, SQLite).
+
+## Future Enhancement Roadmap
+
+### Advanced Greeks Trading Integration (Future Version)
+**Research Status:** Completed via Archon MCP analysis  
+**Implementation Priority:** Post-MVP (Version 2.0+)  
+**Complexity:** High - requires advanced options theory and real-time data processing
+
+#### Identified Enhancement Opportunities
+Based on comprehensive research including Interactive Brokers API capabilities and modern Greeks-trading methodologies:
+
+**Real-Time Greeks Monitoring:**
+- Live Greeks calculation via `tickOptionComputation` callbacks (Delta, Gamma, Theta, Vega, Rho)
+- Portfolio-level Greeks aggregation across all active positions
+- Greeks-based risk warnings and position size recommendations
+
+**Dynamic Risk Management:**
+- Delta-hedging opportunities identification for enhanced P/L
+- Gamma risk alerts during high-volatility periods
+- Theta decay optimization for exit timing
+- Vega exposure monitoring for volatility regime changes
+
+**Advanced Analytics:**
+- Greeks historical tracking throughout trade lifecycle
+- Delta accuracy metrics (target vs achieved delta analysis)
+- Volatility smile/skew integration for strike selection refinement
+- Performance attribution by individual Greek contributions
+
+**Strategic Enhancements:**
+- VIX regime-based strategy parameter adjustment
+- Gamma scalping opportunity detection
+- Cross-strategy Greeks hedging (SPX Condor + SPY Strangle correlation management)
+
+#### Implementation Notes
+- Requires OPRA market data subscription (already planned)
+- Compatible with current IB API architecture (ib_async)
+- Can be developed incrementally without disrupting core functionality
+- Target for discussion after successful Phase 1 & 2 completion
+
+#### Business Value
+- Transition from "basic automation" to "professional Greeks-aware trading system"
+- Potential differentiation for future commercialization
+- Enhanced risk management and performance optimization
+- Foundation for AI-driven optimization (Version 3.0+)
+
+---
+
+## 2025 Technology Validation & Updates
+
+### Change Log - 2025 Updates
+| Date | Version | Description | Validation Source |
+|------|---------|-------------|-------------------|
+| 2025-01-17 | 2.0 | Technology stack validated against 2025 production standards | RAG Analysis + Web Search |
+| 2025-01-17 | 2.1 | CRITICAL: Library migration ib_insync → ib_async (unmaintained risk) | Production Risk Assessment |
+| 2025-08-17 | 2.2 | Future Greeks trading enhancements researched and documented | Archon MCP + Dan Passarelli research |
+
+### Key 2025 Validation Results  
+- **🚨 CRITICAL UPDATE - ib_async**: ib_insync UNMAINTAINED since 2024 (author deceased), migrated to ib_async v2.0.1 (actively maintained, production-ready)
+- **✅ FastAPI + HTMX**: Validated as leading 2025 production pattern with Server-Sent Events
+- **✅ Tailwind CSS + DaisyUI**: Confirmed as 2025 standard for professional UI components
+- **✅ Podman Container**: Confirmed suitable for production deployment on Mac
+- **✅ OCA/Bracket Orders**: Implementation details updated with current ib_async API patterns (compatible API)
+- **✅ HTML-First Approach**: Confirmed as 2025 standard for HTMX applications
+- **✅ Kanban Design**: NO drag & drop required - programmatic movement via trading logic
+
+### 🚨 CRITICAL PRODUCTION RISK MITIGATION
+
+**Unmaintained Library Risk Assessment:**
+- **Risk**: Using unmaintained libraries in production trading systems creates security vulnerabilities, API compatibility issues, and support gaps
+- **Impact**: Potential trading system failure, security breaches, inability to resolve critical bugs
+- **Mitigation**: Immediate migration to actively maintained alternatives with compatible APIs
+- **Resolution**: ib_insync → ib_async (same original author, compatible API, active maintenance)
+
+**Migration Requirements:**
+```python
+# Minimal code changes required:
+# OLD: from ib_insync import IB, Stock, Contract
+# NEW: from ib_async import IB, Stock, Contract
+# API remains 95% compatible
+```
+
+**Validation Required:**
+1. Test all trading functions with ib_async v2.0.1
+2. Verify OCA/bracket order functionality 
+3. Confirm real-time data streaming
+4. Test connection handling and reconnection logic
