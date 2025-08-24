@@ -48,8 +48,8 @@ Manual options trading requires constant daily attention and is prone to human e
 - Manual override compatibility with logging
 
 **Phase 2: SPY Strangle (42 DTE)**  
-- Weekly Friday 18:00 CET (12:00 ET) execution using TastyTrade Expected Move formula
-- Strike selection: Put below Expected Move, Call above Expected Move (nearest available strikes)
+- Weekly Friday 18:00 CET (12:00 ET) execution
+- Strike selection: Delta 16 targeting (±1.9 tolerance) for both Put and Call strikes
 - Intelligent defensive rolling at ≤28 DTE when strike tested
 - Mandatory 21 DTE close regardless of P/L or roll status
 - Dual time tracking: contract expiry AND strategy exit times

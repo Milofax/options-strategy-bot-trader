@@ -540,10 +540,13 @@ Settings accessible via [⚙️] button in header
 │ └─ Summary Time: [18:00 CET    ]                            │
 │                                                               │
 │ RISK MANAGEMENT                                              │
-│ ├─ Position Size Mode: [○ Fixed] [● % of Capital]           │
-│ ├─ Max % per Trade: [5%        ]                            │
-│ ├─ Daily Loss Limit: [8%       ]                            │
-│ └─ Consecutive Loss Pause: [3  ]                            │
+│ ├─ Position Size Mode: [● Fixed] [○ Dynamic]                │
+│ ├─ Fixed Contracts: [1         ]                            │
+│ └─ Dynamic Sizing:                                          │
+│     ├─ % Net Liq per Trade: [3%        ]                    │
+│     ├─ % Buying Power Limit: [50%      ]                    │
+│     ├─ VIX > X Halve Position: [30     ]                    │
+│     └─ VIX > Y Skip Trade: [50         ]                    │
 │                                                               │
 │ EXIT ORDER MANAGEMENT                                         │
 │ ├─ Exit Retry Attempts: [30     ] (max retries)             │
@@ -906,8 +909,14 @@ in 12 days
 - **AUTOMATIC PROGRESSION**: At execution time, instances automatically move from NEXT (Column 1) → SEARCH OPTIONS (Column 2). No instance remains in NEXT beyond its scheduled execution time.
 - ⚠️ **WARNING**: Fixable problems with time remaining
   - TWS disconnected (system auto-retry active)
-  - Insufficient capital (may become available)
-  - **Content lines**: Line 1 = execution time, Line 2 = error message (no remaining time)
+  - **Capital/Margin warnings (Dynamic Mode):**
+    - Insufficient Net Liquidity: "⚠️ Low NLV: Position reduced to 2 contracts"
+    - Approaching Buying Power limit: "⚠️ BP 48%: Near 50% limit"
+    - Insufficient margin for full position: "⚠️ Margin: Position reduced to 1 contract"
+  - **VIX-based position adjustments (Dynamic Mode):**
+    - VIX > 30: "⚠️ VIX 32.5: Position will be halved"
+    - VIX > 50: "⚠️ VIX 51.2: Trade will be skipped"
+  - **Content lines**: Line 1 = execution time, Line 2 = warning message (no remaining time)
 - **No ❌ ERROR**: Problems in NEXT are still fixable, errors only occur in active trading phases
 
 **Auto-Status Updates:**
@@ -919,6 +928,13 @@ in 12 days
 **Status States:**
 - 🔄 **DOING** - Actively searching for options OR retry in progress after error
 - ❌ **ERROR** - Search failed, waiting for next retry OR max retries reached
+  - **Capital/Margin blocks (Dynamic Mode):**
+    - Cannot meet 1 contract minimum: "❌ Insufficient capital for min position" → Requires manual [🗃️ ARCHIVE]
+    - Margin requirements not met: "❌ Margin requirement exceeds available" → Requires manual [🗃️ ARCHIVE]
+    - Buying Power exceeded: "❌ Position exceeds buying power" → Requires manual [🗃️ ARCHIVE]
+  - **VIX-based blocks (Dynamic Mode):**
+    - VIX > 50: "❌ VIX 51.2: Trade blocked" → Requires manual [🗃️ ARCHIVE]
+  - **No retries for capital/VIX blocks (immediate archive option)**
 
 **Line-by-Line Display (9-Line Structure):**
 1. Header: `[Mode Badge] [Instance ID] [Status Badge]`
@@ -1577,7 +1593,7 @@ Emergency market close
 ┌─────────────────┐ (gray bg)
 💰 ST1-240115-018 ❌ ERROR
 ─────────────────
-$0
+-
 Orphaned orders found
 
 
@@ -1591,7 +1607,7 @@ Orphaned orders found
 ┌─────────────────┐ (gray bg)
 🧪 ST2-240115-019 ❌ ERROR
 ─────────────────
-$0
+-
 P/L reconciliation error
 
 
@@ -1601,6 +1617,16 @@ P/L reconciliation error
 ```
 
 ### Column 7: ARCHIVE
+
+**Purpose**: Final resting place for all completed, failed, or skipped instances
+
+**Visual Design Principles**:
+- Minimal layout (uses only 4 of 9 lines for content)
+- Faded/muted appearance to indicate historical data
+- No interactive elements (read-only state)
+- Background color reflects final outcome
+
+**Entry Animation**: Slide from previous column with fade effect
 
 **Generic Layout Structure (9 lines - Minimal)**
 ```
@@ -1616,6 +1642,31 @@ P/L reconciliation error
                          ← Line 9: Empty (no button)
 └─────────────────┘
 ```
+
+**Header Components (Line 1)**:
+- **Mode Badge**: 💰 (LIVE) or 🧪 (EXPERIMENT) - preserved from original trade
+- **Instance ID**: Format [STRAT]-[YYMMDD]-[###]
+- **Status Badge**: 
+  - ✅ (DONE) - Successfully completed trades
+  - ❌ (ERROR) - Failed or problematic trades
+  - ⏭️ (SKIPPED) - Never executed instances
+
+**Content Display**:
+- **Line 3 - P/L Display**:
+  - Format: +$XXX (profit), -$XXX (loss), or - (no value/skipped/error)
+  - Color: Green (profit), Red (loss), Gray (dash/null)
+  - Font: Bold, centered
+- **Line 4 - Time Display**:
+  - Format: "X days ago" (relative time)
+  - Updates daily at midnight
+  - Gray text, smaller font
+
+**Background Colors**:
+- **Green tint**: Profitable trades (P/L > 0)
+- **Red tint**: Loss trades (P/L < 0)
+- **Gray tint**: No P/L value (shows '-'), errors, or skipped instances
+
+**Card Opacity**: 0.7 (slightly faded to indicate archived status)
 
 **Status Examples:**
 
@@ -1649,13 +1700,13 @@ P/L reconciliation error
 └─────────────────┘
 ```
 
-**⏸️ SKIPPED (No Trade)**
+**⏭️ SKIPPED (No Trade)**
 ```
 ┌─────────────────┐ (gray bg)
-💰 ST1-240115-003 ⏸️ SKIPPED
+💰 ST1-240115-003 ⏭️
 ─────────────────
-$ -
-Today
+-
+60d ago
 
 
 
@@ -1663,6 +1714,42 @@ Today
 
 └─────────────────┘
 ```
+
+**❌ ERROR (Failed Trade)**
+```
+┌─────────────────┐ (gray bg)
+🧪 ST2-240112-004 ❌
+─────────────────
+-
+90d ago
+
+
+─────────────────
+
+└─────────────────┘
+```
+
+**Interaction Behavior**:
+- **No buttons**: Cards are read-only
+- **Hover effect**: Slight brightness increase (opacity 0.7 → 0.85)
+- **Click action**: Opens detailed trade history modal (future enhancement)
+- **Sorting**: Newest archives at top by default
+- **Filtering**: Available via dashboard controls (by date, P/L, status)
+
+**Column-Wide Features**:
+- **Auto-scroll**: When column has >10 cards, enable vertical scroll
+- **Batch operations**: Select multiple for CSV export (future)
+- **Search**: Quick filter by instance ID or date range
+- **Archive counter**: Shows total count at column header
+- **Performance**: Lazy loading for large archive sets (>100 cards)
+
+**"Clog the Flow" Implementation**:
+When instances fail/skip/stop in earlier columns:
+1. Card remains in original column with [🗃️ ARCHIVE] button
+2. Card blocks new instances from entering that column
+3. Visual indicator: Red border or pulsing effect
+4. Only manual archive action moves card to Column 7
+5. Archive animation: Slide right with fade transition
 
 ## State-to-UI Mapping Specification
 
