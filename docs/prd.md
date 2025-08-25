@@ -32,6 +32,7 @@ The idea for this project was to automate a proven options trading strategy that
 | 2025-01-19 | 2.4 | Added OCA cancellation logic: only cancel if OCA group exists | John (PM) |
 | 2025-01-24 | 2.5 | Added Epic 7: Complete Experiment Mode with Strategy Testing & Validation | John (PM) |
 | 2025-01-24 | 2.6 | Revised SPY Strangle to use Delta 16, added Meta-Strategy references to Epics, reduced redundancies | John (PM) |
+| 2025-01-24 | 2.7 | Added comprehensive performance metrics for strategies and portfolio (CAGR, Drawdown, MAR, etc.) | John (PM) |
 
 ## Requirements
 
@@ -435,6 +436,17 @@ The system will dynamically fetch and cache market hours from IB API to handle R
   - Position Size (default: 1 contract)
   - Short Delta (default: 15, tolerance: ±1.9)
   - **UI displays calculated times in both ET and user timezone**
+- **Execution Logging with Error Handling:**
+  - Real-time execution log with timestamps (YY-MM-DD HH:MM:SS format)
+  - Clear error messages for all failure scenarios:
+    - No valid strikes found at target delta
+    - TWS connection failures
+    - Order rejection reasons
+    - Insufficient buying power
+    - Market circuit breaker active
+  - Server-Sent Events (SSE) for live updates during execution
+  - Log retention: Current day only (cleared at midnight)
+  - All errors logged with actionable descriptions
 - TWS connection and order execution per strategy config
 - Podman deployment ready
 - Playwright E2E test suite
@@ -489,7 +501,23 @@ The system will dynamically fetch and cache market hours from IB API to handle R
 **Deliverables:**
 - **Aqua UI Polish:** Gradients, glass morphism, animations, dark mode
 - **Swimlane Architecture:** Strategy rows with statistics bars
-- **Performance Metrics:** Win rate, P/L analysis, Sharpe ratio
+- **Performance Metrics für Einzelstrategien:**
+  - P/L ($): Absoluter Gewinn/Verlust in Dollar
+  - CAGR (%): Compound Annual Growth Rate (annualisierte Rendite)
+  - Max. Drawdown (%): Maximaler Wertverlust vom Höchststand
+  - MAR Ratio: CAGR / Max. Drawdown (Risk-adjusted Return)
+  - Win Percentage (%): Prozentsatz profitabler Trades
+  - Avg. Minutes in Trade: Durchschnittliche Haltedauer in Minuten
+  - # Trades (int): Gesamtzahl der Trades
+  - # Winners (int): Anzahl profitabler Trades
+  - # Losers (int): Anzahl verlustbringender Trades
+  - Daily/Weekly/Monthly Breakdown
+- **Portfolio-Metriken (aggregiert über alle aktiven Strategien):**
+  - Enthaltene Strategien: Liste der laufenden Strategien
+  - P/L ($): Gesamt-P/L aller Strategien
+  - CAGR (%): Portfolio-weite annualisierte Rendite
+  - Max. Drawdown (%): Portfolio-weiter maximaler Drawdown
+  - MAR Ratio: Portfolio CAGR / Portfolio Max. Drawdown
 - **Trade Log:** Sortable/filterable table with CSV export (FR15)
 - **SQLite Persistence:** Database schema, state recovery, backups
 - **Settings Modal:** Categorized settings, validation, save confirmation
@@ -498,7 +526,15 @@ The system will dynamically fetch and cache market hours from IB API to handle R
 - [ ] UI matches Aqua design mockups
 - [ ] All data persists across restarts
 - [ ] CSV export works correctly
-- [ ] Performance metrics calculate accurately
+- [ ] P/L ($) zeigt absoluten Gewinn/Verlust korrekt
+- [ ] CAGR (%) berechnet annualisierte Rendite korrekt
+- [ ] Max. Drawdown (%) trackt maximalen Wertverlust vom Höchststand
+- [ ] MAR Ratio berechnet sich korrekt als CAGR / Max. Drawdown
+- [ ] Win Percentage (%) berechnet korrekt (winners/total trades * 100)
+- [ ] Avg. Minutes in Trade zeigt durchschnittliche Haltedauer
+- [ ] # Trades, Winners, Losers werden korrekt gezählt
+- [ ] Portfolio-Metriken aggregieren korrekt über alle aktiven Strategien
+- [ ] Daily/Weekly/Monthly Breakdowns funktionieren
 - [ ] Mobile layout works on iPhone
 - [ ] Settings modal validates inputs
 - [ ] Delete functionality removes trades properly

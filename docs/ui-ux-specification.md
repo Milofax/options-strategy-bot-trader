@@ -76,7 +76,275 @@ Progress: X → Y       ← Goal tracking
 $125 → $200 target
 ```
 
-## Main Dashboard Layout - Kanban Board Architecture
+## Epic 1: Minimal Trading Interface (Pre-Kanban)
+
+### Overview
+Epic 1 introduces a minimal "fire & forget" interface for single daily trade execution. No Kanban board, no persistent state management - just schedule a trade and let TWS manage it after execution.
+
+### Fire & Forget Principle
+- **No State Persistence**: After OCA order creation, the system "forgets" the position
+- **No P/L Tracking**: No ongoing monitoring of profit/loss after execution
+- **TWS Handoff**: After successful execution, trader manages position in TWS
+- **Daily Scope**: Execution log cleared daily, no history retention
+
+### UI Layout
+
+#### Desktop View (600px centered)
+```plantuml
+@startsalt
+{+
+    {
+        SPX 0DTE Iron Condor Bot | . | . | TWS: <color:green>●</color> Connected
+    }
+    ==
+    {
+        <b>TRADE CONFIGURATION</b>
+    }
+    --
+    {
+        Entry Time: | "2    " | min after open
+        . | <color:gray>09:32 ET</color>
+        ..
+        Exit Time: | "120  " | min after open  
+        . | <color:gray>11:30 ET</color>
+        --
+        Profit Target: | "25   " | %
+        Stop Loss: | "300  " | %
+        --
+        Position Size: | "1    " | contracts
+        Short Delta: | "15   " | <color:gray>± 1.9</color>
+    }
+    ..
+    {
+        [ <b>SCHEDULE TRADE</b> ]
+    }
+    ==
+    {
+        <b>EXECUTION LOG</b>
+    }
+    --
+    {T
+        + <b>Date/Time</b> | <b>Status</b>
+        + ----- | ------
+        + . | <color:gray><i>Waiting for 09:32 ET...</i></color>
+    }
+    ..
+    {
+        [ Clear Log ]
+    }
+}
+@endsalt
+```
+
+#### Mobile View (full-width responsive)
+```plantuml
+@startsalt
+{+
+  {* SPX 0DTE Bot }
+  {* TWS: (X) Connected }
+  ==
+  **CONFIG**
+  --
+  Entry: | "2  "
+  -> 09:32 ET
+  --
+  Exit: | "120"
+  -> 11:30 ET  
+  --
+  Profit: | "25 " | %
+  Stop:   | "300" | %
+  Qty:    | "1  "
+  Delta:  | "15 " | ±1.9
+  ==
+  [ SCHEDULE TRADE ]
+  ==
+  **LOG**
+  --
+  {SI
+  Waiting for 09:32 ET...
+  }
+  --
+  [ Clear ]
+}
+@endsalt
+```
+
+### Execution States
+
+#### 1. During Execution (09:32 ET)
+The system executes the trade and provides real-time updates for approximately 30-60 seconds:
+
+```plantuml
+@startsalt
+{T
+    + <b>Date/Time</b> | <b>Status</b>
+    + 25-01-24 09:32:00 | Starting trade execution
+    + 25-01-24 09:32:05 | Found strikes: <b>5900/5920</b> Call
+    + . | . . . . . . . . . . . . <b>5700/5680</b> Put
+    + 25-01-24 09:32:10 | Placing combo order...
+    + 25-01-24 09:32:15 | <color:green>✓</color> Order filled at <b>$2.45</b>
+    + 25-01-24 09:32:20 | Setting OCA exit orders...
+    + 25-01-24 09:32:25 | <color:green>✓</color> OCA group created
+    + 25-01-24 09:32:30 | <color:green><b>✓ COMPLETE</b></color> - Manage in TWS
+}
+@endsalt
+```
+
+#### 2. After Execution
+Button disabled until configuration changes or new day begins. Log shows completion status.
+
+### Button Enable/Disable Logic
+
+**Button DISABLED when:**
+- Trade already executed AND configuration unchanged
+- Current time > configured entry time
+- TWS not connected
+
+**Button ENABLED when:**
+- No trade executed today yet
+- Trade executed BUT configuration changed AND new time is in future
+- After midnight (new trading day)
+
+### Real-time Features
+
+#### Time Conversion
+- User inputs offset in minutes (e.g., "2 min after open")
+- System displays calculated ET time (e.g., "09:32 ET")
+- Optional: User's local timezone if configured
+
+#### Server-Sent Events (SSE)
+- Active ONLY during execution (09:32:00 - 09:32:30)
+- Updates execution log in real-time
+- Connection closes after completion
+- No polling or persistent connections
+
+### Error Handling
+
+Execution errors are shown in the log with clear descriptions:
+
+```plantuml
+@startsalt
+{T
+    + <b>Date/Time</b> | <b>Status</b>
+    + 25-01-24 09:32:00 | Starting trade execution
+    + 25-01-24 09:32:05 | <color:red>✕ ERROR: No valid strikes found</color>
+    + . | <color:red>Delta 15 not available at current prices</color>
+    + 25-01-24 09:32:06 | <color:red>FAILED - Trade not executed</color>
+}
+@endsalt
+```
+
+### Form Validation
+
+- **Entry Time**: Must be future time, >= 0 min after open
+- **Exit Time**: Must be > Entry Time
+- **Profit Target**: 1-100%
+- **Stop Loss**: 100-500%
+- **Position Size**: >= 1
+- **Short Delta**: 5-25 (± tolerance shown)
+
+---
+
+## Epic 2: Integrated Dashboard (Epic 1 + Kanban)
+
+### Overview
+Epic 2 combines the Epic 1 Setup Trade interface with the new Kanban Board on a single page. Both components share state, allowing seamless transition from scheduling to tracking.
+
+### Desktop Layout
+
+The Epic 1 UI (600px centered) sits above the full-width Kanban Board:
+
+```plantuml
+@startsalt
+{+
+    {#
+        TWS: <color:green>●</color> Connected | . | . | . | [⚙️ Settings]
+    }
+    ==
+    {^
+        <b>SETUP TRADE</b>
+        --
+        <b>SPX 0DTE Iron Condor Bot</b>
+        --
+        Entry Time: | "2    " | min after open | <color:gray>09:32 ET</color>
+        Exit Time: | "120  " | min after open | <color:gray>11:30 ET</color>
+        --
+        Profit Target: | "25   " | %
+        Stop Loss: | "300  " | %
+        --
+        Position Size: | "1    " | contracts
+        Short Delta: | "15   " | <color:gray>± 1.9</color>
+        --
+        [ <b>SCHEDULE TRADE</b> ]
+    }
+    ==
+    {#
+        <b>KANBAN BOARD</b>
+        --
+        . | SCHEDULED | SEARCHING | ORDERING | PROTECTING | ACTIVE | CLOSED | ARCHIVED
+        --
+        SPX IC | . | . | . | . | ST1#001 | . | .
+        . | . | . | . | . | +$125 | . | .
+    }
+    ==
+    {^
+        <b>EXECUTION LOG</b>
+        --
+        {T
+            + <b>Date/Time</b> | <b>Status</b>
+            + 25-01-24 09:32:30 | <color:green>✓ COMPLETE</color> - Manage in TWS
+        }
+    }
+}
+@endsalt
+```
+
+### State Synchronization
+
+```mermaid
+stateDiagram-v2
+    [*] --> ConfigureParams: User enters parameters
+    ConfigureParams --> ScheduleTrade: Click "SCHEDULE TRADE"
+    ScheduleTrade --> CardCreated: Create card ST1#001
+    CardCreated --> SCHEDULED: Card in Column 1
+    
+    SCHEDULED --> SEARCHING: At 09:32 ET
+    SEARCHING --> ORDERING: Found strikes
+    ORDERING --> PROTECTING: Order filled
+    PROTECTING --> ACTIVE: OCA created
+    
+    ACTIVE --> CLOSED: Exit condition met
+    CLOSED --> ARCHIVED: Manual archive
+    
+    note right of SEARCHING
+        Execution Log shows
+        real-time updates
+        (~30 seconds)
+    end note
+    
+    note right of ACTIVE
+        Card stays here until
+        profit/stop/time exit
+    end note
+```
+
+**Key Points:**
+- Single click creates card with unique ID (e.g., ST1#001)
+- Card automatically progresses through states during execution
+- Execution Log mirrors state changes in real-time
+- Both UI components share the same state manager
+
+### Mobile Layout
+
+**Vertical Scroll Approach:**
+- Setup Trade section at top (always accessible)
+- Scroll down to see Kanban Board
+- Execution Log at bottom
+- Sticky header with TWS connection status
+
+---
+
+## Main Dashboard Layout - Kanban Board Architecture (Epic 2+)
 
 ### Core Concept: Strategy Instance Management
 The dashboard uses a revolutionary Kanban-based approach that distinguishes between:
