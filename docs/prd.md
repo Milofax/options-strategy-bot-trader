@@ -84,6 +84,12 @@ The idea for this project was to automate a proven options trading strategy that
   - Architecture decision by Architect: Direct API call vs cached approach
   - Required for Dynamic Position Sizing Mode
   - Fallback: If VIX unavailable, use Fixed Contract Mode with warning
+- **FR27:** **Real-time Statistics Updates:** Performance metrics MUST update immediately when trades close
+  - Individual strategy metrics update within 100ms of state transition to CLOSED
+  - Portfolio-level metrics recalculate automatically after any strategy metric changes
+  - Updates trigger via state change events, not polling
+  - All connected clients receive metric updates via Server-Sent Events
+  - Database writes for metrics are asynchronous to maintain <100ms UI update performance
 
 ### Non-Functional Requirements
 
@@ -511,13 +517,14 @@ The system will dynamically fetch and cache market hours from IB API to handle R
   - # Trades (int): Gesamtzahl der Trades
   - # Winners (int): Anzahl profitabler Trades
   - # Losers (int): Anzahl verlustbringender Trades
-  - Daily/Weekly/Monthly Breakdown
+  - **CRITICAL:** All strategy metrics MUST update within 100ms after a trade closes (state transition to CLOSED)
 - **Portfolio-Metriken (aggregiert über alle aktiven Strategien):**
   - Enthaltene Strategien: Liste der laufenden Strategien
   - P/L ($): Gesamt-P/L aller Strategien
   - CAGR (%): Portfolio-weite annualisierte Rendite
   - Max. Drawdown (%): Portfolio-weiter maximaler Drawdown
   - MAR Ratio: Portfolio CAGR / Portfolio Max. Drawdown
+  - **CRITICAL:** Portfolio metrics MUST recalculate immediately after any individual strategy metrics change
 - **Trade Log:** Sortable/filterable table with CSV export (FR15)
 - **SQLite Persistence:** Database schema, state recovery, backups
 - **Settings Modal:** Categorized settings, validation, save confirmation
@@ -533,8 +540,9 @@ The system will dynamically fetch and cache market hours from IB API to handle R
 - [ ] Win Percentage (%) berechnet korrekt (winners/total trades * 100)
 - [ ] Avg. Minutes in Trade zeigt durchschnittliche Haltedauer
 - [ ] # Trades, Winners, Losers werden korrekt gezählt
+- [ ] **Strategy metrics update within 100ms after trade closes (state→CLOSED)**
 - [ ] Portfolio-Metriken aggregieren korrekt über alle aktiven Strategien
-- [ ] Daily/Weekly/Monthly Breakdowns funktionieren
+- [ ] **Portfolio metrics recalculate immediately after any strategy metric changes**
 - [ ] Mobile layout works on iPhone
 - [ ] Settings modal validates inputs
 - [ ] Delete functionality removes trades properly
@@ -542,7 +550,7 @@ The system will dynamically fetch and cache market hours from IB API to handle R
 - [ ] Database handles 5 years of data
 - [ ] Trade states survive restart
 - [ ] Metrics recalculate from DB on startup
-- [ ] Performance: Metric updates <100ms
+- [ ] Performance: All metric updates complete within 100ms of trade closure
 - [ ] Playwright tests for UI interactions
 
 ### Epic 4: Setup Wizard & Localization

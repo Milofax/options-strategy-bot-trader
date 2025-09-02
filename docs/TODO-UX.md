@@ -13,47 +13,138 @@ Dieses Dokument trackt alle notwendigen Ergänzungen zur UI/UX-Spezifikation bas
 
 ## Epic 3: Professional UI, Analytics & Persistence
 
-### ⬜ Task 3.1: Analytics Dashboard Section
-**Status:** TODO  
+### ✅ Task 3.1: Analytics Dashboard Section
+**Status:** DONE (24.01.2025)  
 **Beschreibung:** Ergänze Analytics-Bereich oberhalb der Kanban-Swimlanes
 
-**UI-Komponenten:**
+**Overall Statistics (Portfolio-Metriken):**
+
+**Hinweis zur UI-Implementierung:** Die Statistiken sollen als horizontale Kacheln-Reihen dargestellt werden (siehe Screenshot), nicht vertikal. Jede Kachel hat einen Titel oben und den Wert prominent darunter. Farben: Grün für positive Werte, Rot für negative Werte.
+
 ```plantuml
 @startsalt
 {+
     {
-        <b>PORTFOLIO ANALYTICS</b>
+        <b>OVERALL STATISTICS</b> <color:gray>(All Active Strategies)</color>
     }
     ==
-    {
-        Win Rate: <b>83.7%</b> | Avg P/L: <color:green><b>+$145</b></color> | Sharpe: <b>1.82</b>
-        Total Trades: <b>156</b> | This Month: <color:green><b>+$2,450</b></color>
+    {T
+        | P/L | CAGR | Max Drawdown | MAR Ratio | Win %
+        | <color:green><b>$22,282</b></color> | <b>5.7%</b> | <color:red><b>-1.5%</b></color> | <b>3.9</b> | <b>83.6%</b>
     }
-    ..
-    {
-        [ 📊 Detailed Analytics ] | [ 📥 Export CSV ] | [ 🔄 Refresh ]
+    --
+    {T
+        | Total Premium | Capture Rate | Starting Capital | Ending Capital | .
+        | <b>$287,330</b> | <b>7.8%</b> | <b>$100,000</b> | <color:green><b>$122,282</b></color> | .
+    }
+    --
+    {T
+        | Avg Per Trade | Avg Winner | Avg Loser | Max Winner | Max Loser
+        | <b>$28</b>/lot | <color:green><b>$90</b></color>/lot | <color:red><b>-$292</b></color>/lot | <color:green><b>$346</b></color>/lot | <color:red><b>-$1,199</b></color>/lot
+    }
+    --
+    {T
+        | Avg Minutes | Trades | Winners/Losers | . | .
+        | <b>59.1</b> | <b>807</b> | <b>675</b> / <b>132</b> | . | .
     }
 }
 @endsalt
 ```
 
-**Metriken zu implementieren (aus PRD):**
-- [ ] Win Rate (% profitable Trades)
-- [ ] Average P/L pro Trade
-- [ ] Total P/L (Gesamt)
-- [ ] Monthly/Weekly/Daily Breakdown
+**Alternative visuelle Darstellung (Kachel-Layout):**
+```
+┌────────────────────────────────────────────────────────────────┐
+│                 OVERALL STATISTICS (All Active Strategies)      │
+├────────────┬────────────┬────────────┬────────────┬────────────┤
+│    P/L     │    CAGR    │ Max Drawdn │  MAR Ratio │   Win %    │
+│  $22,282   │    5.7%    │   -1.5%    │     3.9    │   83.6%    │
+├────────────┼────────────┼────────────┼────────────┼────────────┤
+│Total Prem. │ Capt. Rate │ Start Cap. │  End Cap.  │            │
+│  $287,330  │    7.8%    │  $100,000  │  $122,282  │            │
+├────────────┼────────────┼────────────┼────────────┼────────────┤
+│ Avg/Trade  │ Avg Winner │ Avg Loser  │ Max Winner │ Max Loser  │
+│   $28/lot  │   $90/lot  │  -$292/lot │  $346/lot  │-$1,199/lot │
+├────────────┼────────────┼────────────┼────────────┼────────────┤
+│  Avg Min   │   Trades   │  Win/Loss  │            │            │
+│    59.1    │     807    │   675/132  │            │            │
+└────────────┴────────────┴────────────┴────────────┴────────────┘
+```
 
-**Hinweis:** Sharpe Ratio aus PRD macht für 0DTE keinen Sinn - zu klären in Epic 3
+**Hinweis:** Metriken aktualisieren sich automatisch nach jedem geschlossenen Trade (innerhalb von <100ms laut PRD)
 
-### ⬜ Task 3.2: CSV Export Functionality
+**Per-Strategy Statistics (Einzelstrategie-Metriken):**
+```plantuml
+@startsalt
+{+
+    {
+        <b>SPX IRON CONDOR 0DTE</b> <color:gray>(SPXIC)</color>
+    }
+    ==
+    {T
+        | <b>P/L</b> | <b>CAGR</b> | <b>Max DD</b> | <b>MAR</b> | <b>Win %</b> | <b>Avg Min</b> | <b>Trades</b> | <b>Winners</b> | <b>Losers</b>
+        | <color:green><b>$12,450</b></color> | <b>6.2%</b> | <color:red><b>-1.2%</b></color> | <b>5.2</b> | <b>84.5%</b> | <b>42.3</b> | <b>523</b> | <b>442</b> | <b>81</b>
+    }
+}
+@endsalt
+```
+
+```plantuml
+@startsalt
+{+
+    {
+        <b>SPY STRANGLE WEEKLY</b> <color:gray>(SPYST)</color>
+    }
+    ==
+    {T
+        | <b>P/L</b> | <b>CAGR</b> | <b>Max DD</b> | <b>MAR</b> | <b>Win %</b> | <b>Avg Min</b> | <b>Trades</b> | <b>Winners</b> | <b>Losers</b>
+        | <color:green><b>$9,832</b></color> | <b>4.9%</b> | <color:red><b>-1.8%</b></color> | <b>2.7</b> | <b>81.2%</b> | <b>312.5</b> | <b>284</b> | <b>233</b> | <b>51</b>
+    }
+}
+@endsalt
+```
+
+**CRITICAL UPDATE REQUIREMENT (FR27 - neu in PRD):** 
+- Metriken MÜSSEN innerhalb von 100ms nach Trade-Abschluss (State→CLOSED) aktualisiert werden
+- Portfolio-Metriken aktualisieren sich SOFORT nach Änderungen der Einzelstrategie-Metriken
+- Updates erfolgen event-gesteuert via State-Change, nicht durch Polling
+- Alle verbundenen Clients erhalten Updates via Server-Sent Events
+
+**Metriken zu implementieren (aus PRD Epic 3):**
+**Portfolio-Metriken (Overall Statistics):**
+- [ ] P/L ($): Absoluter Gewinn/Verlust in Dollar
+- [ ] CAGR (%): Compound Annual Growth Rate
+- [ ] Max. Drawdown (%): Maximaler Wertverlust vom Höchststand
+- [ ] MAR Ratio: CAGR / Max. Drawdown
+- [ ] Win Percentage (%): Prozentsatz profitabler Trades
+- [ ] Total Premium: Gesamtsumme aller eingenommenen Prämien
+- [ ] Capture Rate: P/L als % der Total Premium
+- [ ] Starting/Ending Capital: Anfangs- und Endkapital
+- [ ] Avg Per Trade/Winner/Loser: Durchschnittswerte
+- [ ] Max Winner/Loser: Extreme Werte
+- [ ] Avg Minutes in Trade: Durchschnittliche Haltedauer
+- [ ] # Trades/Winners/Losers: Anzahl der Trades
+
+**Einzelstrategie-Metriken:**
+- [ ] P/L ($): Strategie-spezifischer Gewinn/Verlust
+- [ ] CAGR (%): Strategie-spezifische annualisierte Rendite
+- [ ] Max. Drawdown (%): Strategie-spezifischer Max DD
+- [ ] MAR Ratio: Strategie-spezifisches Risk-adjusted Return
+- [ ] Win Percentage (%): Strategie-spezifische Gewinnrate
+- [ ] Avg Minutes in Trade: Strategie-spezifische Haltedauer
+- [ ] # Trades: Gesamtzahl der Trades dieser Strategie
+- [ ] # Winners: Anzahl profitabler Trades
+- [ ] # Losers: Anzahl verlustbringender Trades
+
+### ⬜ Task 3.2: Trade Log mit CSV Export 
 **Status:** TODO  
-**Beschreibung:** UI für Trade History Export
+**Beschreibung:** Trade Log Tabelle mit Export-Funktionalität (PRD Zeile 521: FR15)
 
 **Features:**
-- [ ] Export Dialog mit Datumsbereich
-- [ ] Format-Optionen (CSV, JSON)
-- [ ] Spalten-Auswahl
-- [ ] Download Progress Indicator
+- [ ] Sortierbare/filterbare Tabelle mit Trade History
+- [ ] CSV Export Button für Trade-Daten
+- [ ] Datumsbereich-Filter
+- [ ] Spalten: Trade ID, Strategy, Entry Time, Exit Time, P/L, Status
+- [ ] Download als CSV-Datei
 
 ---
 

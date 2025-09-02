@@ -344,6 +344,124 @@ stateDiagram-v2
 
 ---
 
+## Epic 3: Professional UI, Analytics & Persistence
+
+### Overview
+Epic 3 introduces comprehensive analytics dashboards, trade history tracking, and persistent state management to elevate the system from a basic trading tool to a professional-grade platform.
+
+### Analytics Dashboard Section
+
+The Analytics Dashboard appears above the Kanban swimlanes, providing real-time performance metrics that update within 100ms of any trade state change (per FR27 requirements).
+
+#### Overall Statistics (Portfolio-Metriken)
+
+**Visual Design**: Horizontal tile layout with clean typography and color-coded values.
+
+```plantuml
+@startsalt
+{+
+    {
+        <b>OVERALL STATISTICS</b> <color:gray>(All Active Strategies)</color>
+    }
+    ==
+    {T
+        | <b>P/L</b> | <b>CAGR</b> | <b>Max Drawdown</b> | <b>MAR Ratio</b> | <b>Win %</b>
+        | <color:green><b>$22,282</b></color> | <b>5.7%</b> | <color:red><b>-1.5%</b></color> | <b>3.9</b> | <b>83.6%</b>
+    }
+    --
+    {T
+        | <b>Total Premium</b> | <b>Capture Rate</b> | <b>Starting Capital</b> | <b>Ending Capital</b> | .
+        | <b>$287,330</b> | <b>7.8%</b> | <b>$100,000</b> | <color:green><b>$122,282</b></color> | .
+    }
+    --
+    {T
+        | <b>Avg Per Trade</b> | <b>Avg Winner</b> | <b>Avg Loser</b> | <b>Max Winner</b> | <b>Max Loser</b>
+        | <b>$28</b>/lot | <color:green><b>$90</b></color>/lot | <color:red><b>-$292</b></color>/lot | <color:green><b>$346</b></color>/lot | <color:red><b>-$1,199</b></color>/lot
+    }
+    --
+    {T
+        | <b>Avg Minutes</b> | <b>Trades</b> | <b>Winners/Losers</b> | . | .
+        | <b>59.1</b> | <b>807</b> | <b>675</b> / <b>132</b> | . | .
+    }
+}
+@endsalt
+```
+
+**Implementation Notes:**
+- Each metric displayed as a tile with title above and value below
+- Green color (#28a745) for positive values
+- Red color (#dc3545) for negative values  
+- Black for neutral metrics
+- Tiles arranged in responsive grid (5 columns desktop, 3 columns tablet, 2 columns mobile)
+- Real-time updates via Server-Sent Events (SSE) on trade completion
+
+#### Per-Strategy Statistics
+
+Each active strategy displays its own performance metrics as a horizontal tile row below the overall statistics:
+
+```plantuml
+@startsalt
+{+
+    {
+        <b>SPX IRON CONDOR 0DTE</b> <color:gray>(SPXIC)</color>
+    }
+    ==
+    {T
+        | <b>P/L</b> | <b>CAGR</b> | <b>Max DD</b> | <b>MAR</b> | <b>Win %</b> | <b>Avg Min</b> | <b>Trades</b> | <b>Winners</b> | <b>Losers</b>
+        | <color:green><b>$12,450</b></color> | <b>6.2%</b> | <color:red><b>-1.2%</b></color> | <b>5.2</b> | <b>84.5%</b> | <b>42.3</b> | <b>523</b> | <b>442</b> | <b>81</b>
+    }
+}
+@endsalt
+```
+
+```plantuml
+@startsalt
+{+
+    {
+        <b>SPY STRANGLE WEEKLY</b> <color:gray>(SPYST)</color>
+    }
+    ==
+    {T
+        | <b>P/L</b> | <b>CAGR</b> | <b>Max DD</b> | <b>MAR</b> | <b>Win %</b> | <b>Avg Min</b> | <b>Trades</b> | <b>Winners</b> | <b>Losers</b>
+        | <color:green><b>$9,832</b></color> | <b>4.9%</b> | <color:red><b>-1.8%</b></color> | <b>2.7</b> | <b>81.2%</b> | <b>312.5</b> | <b>284</b> | <b>233</b> | <b>51</b>
+    }
+}
+@endsalt
+```
+
+**Visual Characteristics:**
+- Collapsible sections per strategy (expanded by default)
+- Strategy name as section header with abbreviation in gray
+- Same color coding as overall statistics
+- Smaller font size than portfolio metrics to establish hierarchy
+- Click on strategy name to expand/collapse metrics
+
+### Metrics Definitions
+
+**Portfolio-Level Metrics:**
+- **P/L**: Total profit/loss across all strategies
+- **CAGR**: Compound Annual Growth Rate
+- **Max Drawdown**: Maximum peak-to-trough decline
+- **MAR Ratio**: CAGR divided by Max Drawdown (risk-adjusted return)
+- **Win %**: Percentage of profitable trades
+- **Total Premium**: Sum of all premiums collected
+- **Capture Rate**: P/L as percentage of Total Premium
+- **Starting/Ending Capital**: Portfolio value at start and current
+- **Avg Per Trade**: Average P/L per lot traded
+- **Avg Winner/Loser**: Average profit on winning/losing trades
+- **Max Winner/Loser**: Largest single win/loss
+- **Avg Minutes**: Average time in trade
+- **Trades**: Total number of completed trades
+- **Winners/Losers**: Count of profitable vs unprofitable trades
+
+**Strategy-Level Metrics:**
+- Same metrics as portfolio but filtered to specific strategy
+- Updates cascade from strategy to portfolio level
+- All calculations use the Meta-Strategy Model configuration
+
+
+---
+
 ## Main Dashboard Layout - Kanban Board Architecture (Epic 2+)
 
 ### Core Concept: Strategy Instance Management
